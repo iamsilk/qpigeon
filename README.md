@@ -2,6 +2,26 @@
 
 An end-to-end encryption message application. Uses quantum-safe cryptography.
 
+## Features
+
+This project is a work-in-progress. Core functionality is still being implemented.
+
+### Server
+
+- [x] Registering accounts.
+- [x] Login to accounts.
+- [ ] Change signature of account.
+- [x] Add and remove contacts.
+- [ ] Send and receive messages.
+
+### Console Client
+
+- [ ] Registering accounts.
+- [ ] Login to accounts.
+- [ ] Change signature of account.
+- [ ] Add and remove contacts.
+- [ ] Send and receive messages.
+
 ## Setup
 
 ```sh
