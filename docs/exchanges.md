@@ -30,6 +30,24 @@ $$
 \end{align*}
 $$
 
+## Bob adds Alice as a contact
+
+$$
+\text{Bob adds Alice as a contact.}
+$$
+$$
+\text{Bob has } SS_{\text{Bob}} \text{ and } PS_{\text{Alice}}. \text{Alice has } SS_{\text{Alice}} \text{ and } PS_{\text{Bob}}.
+$$
+$$
+\begin{align*}
+
+\text{Bob calculates} &:\\
+
+
+
+\end{align*}
+$$
+
 ## Alice sends public KEM to Bob
 
 $$
