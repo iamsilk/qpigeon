@@ -10,7 +10,8 @@ SS &: \text{Secret key (for signing)}\\
 PK &: \text{Public key (for KEM)}\\
 SK &: \text{Secret key (for KEM)}\\
 K &: \text{Symmetric encryption key}\\
-N &: \text{List of used nonces}
+N &: \text{List of used nonces}\\
+B &: \text{Contact book}
 
 \end{align*}
 $$
@@ -42,9 +43,9 @@ $$
 $$
 \begin{align*}
 
-\text{Bob has} &: SS_{\text{Bob}}, PS_{\text{Alice}}, T_{\text{Threshold}}, N\\
-\text{Server has} &: PS_{\text{Bob}}, PS_{\text{Alice}}, T_{\text{Threshold}}, N\\
-\text{Alice has} &: SS_{\text{Alice}}, PS_{\text{Bob}}, T_{\text{Threshold}}, N\\
+\text{Bob has} &: SS_{\text{Bob}}, PS_{\text{Alice}}, T_{\text{Threshold}}, B, N\\
+\text{Server has} &: PS_{\text{Bob}}, PS_{\text{Alice}}, T_{\text{Threshold}}, B, N\\
+\text{Alice has} &: SS_{\text{Alice}}, PS_{\text{Bob}}, T_{\text{Threshold}}, B, N\\
 \\
 
 \text{Bob calculates} &:\\
@@ -63,6 +64,10 @@ N &= N \cup \{(n, PS_{\text{Bob}})\}
 
 S &= \text{Sign}_{SS_{\text{Bob}}}(T||n||PS_{\text{Alice}})
 && \text{Sign contact request.}
+\\
+
+B &= B \cup \{(PS_{\text{Alice}}, PS_{\text{Bob}})\}
+&& \text{Mark Alice as able to send messages to Bob.}
 \\
 
 \\
@@ -88,6 +93,10 @@ N &= N \cup \{(n, PS_{\text{Bob}})\}
 && \text{Add old nonce to list.}
 \\
 
+B &= B \cup \{(PS_{\text{Alice}}, PS_{\text{Bob}})\}
+&& \text{Mark Alice as able to send messages to Bob.}
+\\
+
 \\
 \text{Server sends to Alice} &: S, T, n
 \\
@@ -111,6 +120,10 @@ N &= N \cup \{(n, PS_{\text{Bob}})\}
 && \text{Add old nonce to list.}
 \\
 
+B &= B \cup \{(PS_{\text{Alice}}, PS_{\text{Bob}})\}
+&& \text{Mark Alice as able to send messages to Bob.}
+\\
+
 \\
 
 T &= \text{Now}()
@@ -127,6 +140,10 @@ N &= N \cup \{(n, PS_{\text{Alice}})\}
 
 S &= \text{Sign}_{SS_{\text{Alice}}}(T||n||PS_{\text{Bob}})
 && \text{Sign contact request.}
+\\
+
+B &= B \cup \{(PS_{\text{Bob}}, PS_{\text{Alice}})\}
+&& \text{Mark Bob as able to send messages to Alice.}
 \\
 
 \\
@@ -156,6 +173,10 @@ N &= N \cup \{(n, PS_{\text{Alice}})\}
 && \text{Add old nonce to list.}
 \\
 
+B &= B \cup {(PS_{\text{Bob}}, PS_{\text{Alice}})}
+&& \text{Mark Bob as able to send messages to Alice.}
+\\
+
 \\
 \text{Server sends to Bob} &: S, T, n
 \\
@@ -177,6 +198,10 @@ T &\gt \text{Now}() - T_{\text{Threshold}}
 
 N &= N \cup \{(n, PS_{\text{Alice}})\}
 && \text{Add old nonce to list.}
+\\
+
+B &= B \cup {(PS_{\text{Bob}}, PS_{\text{Alice}})}
+&& \text{Mark Bob as able to send messages to Alice.}
 \\
 \end{align*}
 $$
@@ -234,8 +259,8 @@ $$
 $$
 \begin{align*}
 \text{Bob has} &: SS_{\text{Bob}}, PK_{\text{Alice}}, N\\
-\text{Server has} &: PS_{\text{Bob}}, T_{\text{Threshold}}, N\\
-\text{Alice has} &: SK_{\text{Alice}}, PS_{\text{Bob}}, T_{\text{Threshold}}, N\\
+\text{Server has} &: PS_{\text{Bob}}, T_{\text{Threshold}}, B, N\\
+\text{Alice has} &: SK_{\text{Alice}}, PS_{\text{Bob}}, T_{\text{Threshold}}, B, N\\
 \end{align*}
 $$
 $$
@@ -285,6 +310,10 @@ N &= N \cup \{(n, PS_{\text{Bob}})\}
 && \text{Add old nonce to list.}
 \\
 
+(PS_{\text{Bob}}, PS_{\text{Alice}}) &\in B
+&& \text{Verify Bob can message Alice.}
+\\
+
 \\
 \text{Server sends to Alice} &: S, T,n, C_{K}, C_{M}\\
 
@@ -305,6 +334,10 @@ T &\gt \text{Now}() - T_{\text{Threshold}}
 
 N &= N \cup \{(n, PS_{\text{Bob}})\}
 && \text{Add old nonce to list.}
+\\
+
+(PS_{\text{Bob}}, PS_{\text{Alice}}) &\in B
+&& \text{Verify Bob can message Alice.}
 \\
 
 K &= \text{KEM}^{-1}_{SK_{\text{Alice}}}(C_{K})
