@@ -4,7 +4,6 @@ import secrets
 import base64
 import json
 import os
-
 ss_key_file = os.path.join(os.getcwd(), ".dl2\\ss.dl2")
 ps_key_file = os.path.join(os.getcwd(), ".dl2\\ps.dl2")
 nonces_file = os.path.join(os.getcwd(), "nonces.json")
@@ -37,37 +36,12 @@ else:
 register_url = 'http://127.0.0.1:5000/api/register/'
 login_url = 'http://127.0.0.1:5000/api/login/'
 request_send_url = 'http://127.0.0.1:5000/api/contact/request/send'
+request_url = 'http://127.0.0.1:5000/api/contact/request'
 
 # Dilitihum2 - for now
 sig_alg = 'Dilithium2'
 
 session = requests.Session()
-
-# Get input from the user
-
-print('Welcome to qpigeon!')
-print('A secret key will be needed for communication and will be stored in the enclosing folder')
-print('Please enter a command: ')
-print('[Register (r) or Login (l)]')
-
-cmd = input().lower()
-
-if (cmd != 'r' and cmd != 'l') or cmd == ' ':
-    print('Enter a valid command')
-    exit(-1)
-
-username = input('Enter username: ')
-
-# Data to be sent in the POST request
-data = {'username': username, 'sig_alg': sig_alg}
-
-# Convert the data to JSON format
-json_data = json.dumps(data)
-
-# Set the headers for the request
-headers = {'Content-Type': 'application/json'}
-
-response = ""
 
 def verify_user(_url, _json_data):
     # Verify challenge function here?
@@ -121,7 +95,8 @@ def generate_nonce(_pskey):
 
         f.close()
 
-# -- Need to get public key first through requests
+
+    # -- Need to get public key first through requests
     # def add_contact(_contact_username):
     # if not os.path.exists(contacts_file):
     #     f = open(contacts_file, "w+")
@@ -151,28 +126,84 @@ def generate_nonce(_pskey):
 
 
 def send_request(_username):
+    generate_nonce(sig_key_public)
+    # TODO: Send nonce here as well
     request_send_data = json.dumps({'username': _username})
     request_send_response = session.post(request_send_url, data=request_send_data, headers=headers)
     print(request_send_response.json()['message'])
 
 
-def request_contact(_username):
-    generate_nonce(sig_key_public)
-    send_request(_username)
-    # add_contact(contact)
+def receive_requests():
+    request_send_response = session.post(request_send_url, headers=headers)
+    return request_send_response.json()['requests']
 
 
-if cmd == 'r' and not user_exists:
-    data['sig_key'] = base64.b64encode(sig_key_public).decode()
+def send_message(_username):
+    print("Message sent")
+
+
+# Get input from the user
+
+print('Welcome to qpigeon!')
+print('A secret key will be needed for communication and will be stored in the enclosing folder')
+print('Please enter a command: ')
+print('[Register (r), Login (l), Exit (x)]')
+
+cmd = input().lower()
+
+while cmd != 'x':
+    while (cmd != 'r' and cmd != 'l') or cmd == ' ':
+        print('Enter a valid command')
+        cmd = input().lower()
+
+    username = input('Enter username: ')
+
+    # Data to be sent in the POST request
+    data = {'username': username, 'sig_alg': sig_alg}
+
+    # Convert the data to JSON format
     json_data = json.dumps(data)
 
-    verify_user(register_url, json_data)
+    # Set the headers for the request
+    headers = {'Content-Type': 'application/json'}
 
-elif cmd == 'r':
-    # TODO: Make it so that there are different keys stored with different users
-    print('Public key already exists')
+    response = ""
 
-elif cmd == 'l':
-    code = verify_user(login_url, json_data)
-    if code == 200:
-        request_contact('Alice')
+    if cmd == 'r' and not user_exists:
+        data['sig_key'] = base64.b64encode(sig_key_public).decode()
+        json_data = json.dumps(data)
+
+        verify_user(register_url, json_data)
+
+    elif cmd == 'r':
+        # TODO: Make it so that there are different keys stored with different users
+        print('Public key already exists')
+
+    elif cmd == 'l':
+        code = verify_user(login_url, json_data)
+        if code == 200:
+            print('\nEnter a command: ')
+            print('[(s)end contact request, (r)eceive requests, (v)iew messages, send (m)essage, e(x)it')
+            cmd = input().lower()
+            while cmd != 'x':
+                while (cmd != 's' and cmd != 'r' and cmd != 'v' and cmd != 'm') or cmd == ' ' or cmd == '\n':
+                    print('Enter a valid command')
+                    cmd = input().lower()
+
+                if cmd == 's':
+                    sendto = input('Send request to: ')
+                    send_request(sendto)
+
+                elif cmd == 'r':
+                    pending_requests = receive_requests()
+                    for r in range(0, len(pending_requests)):
+                        print('{}: username = {}', pending_requests[r]['username'])
+
+                elif cmd == 'm':
+                    sendto = input('Send message to: ')
+                    send_message(sendto)
+
+    print('\nPlease enter a command: ')
+    print('[Register (r), Login (l), Exit (x)]')
+
+    cmd = input().lower()
