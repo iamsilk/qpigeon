@@ -28,7 +28,14 @@ class User(db.Model):
         backref='requestee',
         lazy=True
         )
-    
+
+    nonces = db.relationship(
+        'UserNonces',
+        foreign_keys='UserNonces.user_id',
+        backref='user',
+        lazy=True
+        )
+
     outgoing_contact_requests = db.relationship(
         'ContactRequest',
         foreign_keys='ContactRequest.requester_id',
@@ -51,3 +58,11 @@ class ContactRequest(db.Model):
     
     db.UniqueConstraint('requester_id', 'requestee_id', name='unique_contact_request')
     db.Index('requestee_id_idx', 'requestee_id')
+
+class UserNonces(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    nonce = db.Column(db.LargeBinary, db.ForeignKey('user.id'), nullable=False)
+
+    db.UniqueConstraint('user_id', 'nonce', name='unique_user_nonce')
+    db.Index('user_nonce_idx', 'user_id')
