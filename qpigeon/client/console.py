@@ -38,10 +38,8 @@ login_url = 'http://127.0.0.1:5000/api/login/'
 request_send_url = 'http://127.0.0.1:5000/api/contact/request/send'
 request_url = 'http://127.0.0.1:5000/api/contact/request'
 
-# Dilitihum2 - for now
-sig_alg = 'Dilithium2'
-
 session = requests.Session()
+
 
 def verify_user(_url, _json_data):
     # Verify challenge function here?
@@ -134,7 +132,7 @@ def send_request(_username):
 
 
 def receive_requests():
-    request_send_response = session.post(request_send_url, headers=headers)
+    request_send_response = session.get(request_url, headers=headers)
     return request_send_response.json()['requests']
 
 
@@ -202,6 +200,12 @@ while cmd != 'x':
                 elif cmd == 'm':
                     sendto = input('Send message to: ')
                     send_message(sendto)
+
+                print('\nEnter a command: ')
+                print('[(s)end contact request, (r)eceive requests, (v)iew messages, send (m)essage, e(x)it')
+                cmd = input().lower()
+
+            exit(0)
 
     print('\nPlease enter a command: ')
     print('[Register (r), Login (l), Exit (x)]')
