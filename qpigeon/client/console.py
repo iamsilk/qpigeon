@@ -4,8 +4,8 @@ import secrets
 import base64
 import json
 import os
-ss_key_file = os.path.join(os.getcwd(), ".dl2\\ss.dl2")
-ps_key_file = os.path.join(os.getcwd(), ".dl2\\ps.dl2")
+ss_key_file = os.path.join(os.getcwd(), ".dl2", "ss.dl2")
+ps_key_file = os.path.join(os.getcwd(), ".dl2", "ps.dl2")
 nonces_file = os.path.join(os.getcwd(), "nonces.json")
 contacts_file = os.path.join(os.getcwd(), "contacts.json")
 
@@ -32,14 +32,15 @@ else:
     with open(ps_key_file, "rb+") as file:
         sig_key_public = file.read()
 
+static_domain = 'https://keen-arguably-termite.ngrok-free.app'
+
 # Assuming the Flask server is running at http://localhost:5000
-register_url = 'http://127.0.0.1:5000/api/register/'
-login_url = 'http://127.0.0.1:5000/api/login/'
-request_send_url = 'http://127.0.0.1:5000/api/contact/request/send'
-request_url = 'http://127.0.0.1:5000/api/contact/request'
+register_url = static_domain + '/api/register/'
+login_url = static_domain + '/api/login/'
+request_send_url = static_domain + '/api/contact/request/send'
+request_url = static_domain + '/api/contact/request'
 
 session = requests.Session()
-
 
 def verify_user(_url, _json_data):
     # Verify challenge function here?
