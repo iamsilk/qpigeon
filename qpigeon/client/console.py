@@ -65,14 +65,17 @@ def verify_user(_url, _json_data):
 
 def generate_nonce(_pskey):
     if not os.path.exists(nonces_file):
+        _nonce = base64.b64encode(secrets.token_bytes(16)).decode()
         f = open(nonces_file, "w+")
         _json_data = [{
             'sig_pub_key': base64.b64encode(_pskey).decode(),
-            'nonce': base64.b64encode(secrets.token_bytes(16)).decode()
+            'nonce': _nonce
         }]
         json.dump(_json_data, f, indent=2)
 
         f.close()
+
+        return _nonce
 
     else:
         f = open(nonces_file, "r+")
@@ -101,18 +104,18 @@ def generate_nonce(_pskey):
 def generate_contact(_contact_request):
     if not os.path.exists(contacts_file):
         f = open(contacts_file, "w+")
-        _json_data = {
-            [
-                {'sender_key': _contact_request['sig_key']},
-                {'receiver_key': base64.b64encode(sig_key_public).decode()}
-            ]
-        }
+        _json_data = [{
+                'sender_key': _contact_request['sig_key'],
+                'receiver_key': base64.b64encode(sig_key_public).decode()
+        }]
         json.dump(_json_data, f, indent=2)
 
         f.close()
 
+        return True
+
     else:
-        f = open(nonces_file, "r+")
+        f = open(contacts_file, "r+")
         json_str = f.read()
         existing_contacts = json.loads(json_str)
         _contact_key = _contact_request['sig_key']
