@@ -104,7 +104,7 @@ def generate_contact(_contact_request):
         _json_data = {
             [
                 {'sender_key': _contact_request['sig_key']},
-                {'receiver_key': sig_key_public}
+                {'receiver_key': base64.b64encode(sig_key_public).decode()}
             ]
         }
         json.dump(_json_data, f, indent=2)
@@ -124,7 +124,7 @@ def generate_contact(_contact_request):
 
         if not contact_found:
             existing_contacts.append({'sender_key': base64.b64encode(sig_key_public).decode(),
-                                      'receiver_key': base64.b64encode(_contact_key).decode()})
+                                      'receiver_key': _contact_key})
             f.seek(0)
             json.dump(existing_contacts, f, indent=2)
 
@@ -219,7 +219,7 @@ while cmd != 'x':
                         print('{}: username = {}'.format(r, pending_requests[r]['username']))
 
                     if len(pending_requests) > 0:
-                        index = input('Enter a request to accept: ')
+                        index = int(input('Enter a request to accept: '))
 
                         add_contact(username, pending_requests[index])
 
