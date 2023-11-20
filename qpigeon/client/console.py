@@ -4,6 +4,7 @@ import secrets
 import base64
 import json
 import os
+import time
 ss_key_file = os.path.join(os.getcwd(), ".dl2", "ss.dl2")
 ps_key_file = os.path.join(os.getcwd(), ".dl2", "ps.dl2")
 nonces_file = os.path.join(os.getcwd(), "nonces.json")
@@ -63,17 +64,47 @@ def verify_user(_url, _json_data):
 
 
 def generate_nonce(_pskey):
-    _nonce = base64.b64encode(secrets.token_bytes(16)).decode()
-
     if not os.path.exists(nonces_file):
         f = open(nonces_file, "w+")
-        _json_data = {
+        _json_data = [{
             'sig_pub_key': base64.b64encode(_pskey).decode(),
-            'nonces':
+            'nonce': base64.b64encode(secrets.token_bytes(16)).decode()
+        }]
+        json.dump(_json_data, f, indent=2)
+
+        f.close()
+
+    else:
+        f = open(nonces_file, "r+")
+        json_str = f.read()
+        existing_nonces = json.loads(json_str)
+        while True:
+            _nonce = base64.b64encode(secrets.token_bytes(16)).decode()
+            nonce_found = False
+            for pair in existing_nonces:
+                if pair['sig_pub_key'] == base64.b64encode(_pskey).decode():
+                    if pair['nonce'] == _nonce and not nonce_found:
+                        nonce_found = True
+
+            if not nonce_found:
+                break
+
+        existing_nonces.append({'sig_pub_key': base64.b64encode(_pskey).decode(), 'nonce': _nonce})
+        f.seek(0)
+        json.dump(existing_nonces, f, indent=2)
+
+        f.close()
+
+        return _nonce
+
+
+def generate_contact(_contact_request):
+    if not os.path.exists(contacts_file):
+        f = open(contacts_file, "w+")
+        _json_data = {
             [
-                {
-                    'nonce': _nonce
-                }
+                {'sender_key': _contact_request['sig_key']},
+                {'receiver_key': sig_key_public}
             ]
         }
         json.dump(_json_data, f, indent=2)
@@ -83,51 +114,40 @@ def generate_nonce(_pskey):
     else:
         f = open(nonces_file, "r+")
         json_str = f.read()
-        existing_nonces = json.loads(json_str)
-        if existing_nonces['sig_pub_key'] == base64.b64encode(_pskey).decode():
-            found = any(e['nonce'] == _nonce for e in existing_nonces['nonces'])
+        existing_contacts = json.loads(json_str)
+        _contact_key = _contact_request['sig_key']
+        contact_found = False
+        for pair in existing_contacts:
+            if pair['sender_key'] == _contact_key:
+                if pair['receiver_key'] == sig_key_public and not contact_found:
+                    contact_found = True
 
-            if not found:
-                existing_nonces['nonces'].append({'nonce': _nonce})
-                f.seek(0)
-                json.dump(existing_nonces, f, indent=2)
+        if not contact_found:
+            existing_contacts.append({'sender_key': base64.b64encode(sig_key_public).decode(),
+                                      'receiver_key': base64.b64encode(_contact_key).decode()})
+            f.seek(0)
+            json.dump(existing_contacts, f, indent=2)
 
-        f.close()
+            f.close()
+
+            return True
+
+        return False
 
 
-    # -- Need to get public key first through requests
-    # def add_contact(_contact_username):
-    # if not os.path.exists(contacts_file):
-    #     f = open(contacts_file, "w+")
-    #     _json_data = {
-    #         [
-    #             {'sender_key': },
-    #             {'receiver_key': base64.b64encode(sig_key_public).decode()}
-    #         ]
-    #     }
-    #     json.dump(_json_data, f, indent=2)
-    #
-    #     f.close()
-    #
-    # else:
-    #     f = open(nonces_file, "r+")
-    #     json_str = f.read()
-    #     existing_nonces = json.loads(json_str)
-    #     if existing_nonces['sig_pub_key'] == base64.b64encode(_pskey).decode():
-    #         found = any(e['nonce'] == _nonce for e in existing_nonces['nonces'])
-    #
-    #         if not found:
-    #             existing_nonces['nonces'].append({'nonce': _nonce})
-    #             f.seek(0)
-    #             json.dump(existing_nonces, f, indent=2)
-    #
-    #     f.close()
+#-- Need to get public key first through requests
+def add_contact(_username, _contact_request):
+    if generate_contact(_contact_request):
+        add_contact_data = json.dumps({'username': username})
+        add_contact_response = session.post(request_url, data=add_contact_data, headers=headers)
+        print(add_contact_response.json()['message'])
 
 
 def send_request(_username):
-    generate_nonce(sig_key_public)
-    # TODO: Send nonce here as well
-    request_send_data = json.dumps({'username': _username})
+    new_nonce = generate_nonce(sig_key_public)
+    # TODO: Send nonce here as well - and timestamp
+    time_stamp = time.time()
+    request_send_data = json.dumps({'username': _username, 'timestamp': time_stamp, 'nonce': new_nonce})
     request_send_response = session.post(request_send_url, data=request_send_data, headers=headers)
     print(request_send_response.json()['message'])
 
@@ -196,7 +216,12 @@ while cmd != 'x':
                 elif cmd == 'r':
                     pending_requests = receive_requests()
                     for r in range(0, len(pending_requests)):
-                        print('{}: username = {}', pending_requests[r]['username'])
+                        print('{}: username = {}'.format(r, pending_requests[r]['username']))
+
+                    if len(pending_requests) > 0:
+                        index = input('Enter a request to accept: ')
+
+                        add_contact(username, pending_requests[index])
 
                 elif cmd == 'm':
                     sendto = input('Send message to: ')
