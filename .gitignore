@@ -133,6 +133,9 @@ venv.bak/
 # Nonces
 /qpigeon/client/nonces.json
 
+# Contacts
+/qpigeon/client/contacts.json
+
 # Rope project settings
 .ropeproject
 

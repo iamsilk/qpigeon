@@ -5,6 +5,7 @@ import base64
 import json
 import os
 import time
+
 ss_key_file = os.path.join(os.getcwd(), ".dl2", "ss.dl2")
 ps_key_file = os.path.join(os.getcwd(), ".dl2", "ps.dl2")
 nonces_file = os.path.join(os.getcwd(), "nonces.json")
@@ -40,8 +41,10 @@ register_url = static_domain + '/api/register/'
 login_url = static_domain + '/api/login/'
 request_send_url = static_domain + '/api/contact/request/send'
 request_url = static_domain + '/api/contact/request'
+contacts_url = static_domain + '/api/contact'
 
 session = requests.Session()
+
 
 def verify_user(_url, _json_data):
     # Verify challenge function here?
@@ -105,8 +108,8 @@ def generate_contact(_contact_request):
     if not os.path.exists(contacts_file):
         f = open(contacts_file, "w+")
         _json_data = [{
-                'sender_key': _contact_request['sig_key'],
-                'receiver_key': base64.b64encode(sig_key_public).decode()
+            'sender_key': _contact_request['sig_key'],
+            'receiver_key': base64.b64encode(sig_key_public).decode()
         }]
         json.dump(_json_data, f, indent=2)
 
@@ -122,7 +125,7 @@ def generate_contact(_contact_request):
         contact_found = False
         for pair in existing_contacts:
             if pair['sender_key'] == _contact_key:
-                if pair['receiver_key'] == sig_key_public and not contact_found:
+                if pair['receiver_key'] == base64.b64encode(sig_key_public).decode() and not contact_found:
                     contact_found = True
 
         if not contact_found:
@@ -138,12 +141,17 @@ def generate_contact(_contact_request):
         return False
 
 
-#-- Need to get public key first through requests
-def add_contact(_username, _contact_request):
+# -- Need to get public key first through requests
+def add_contact(_contact_request):
     if generate_contact(_contact_request):
-        add_contact_data = json.dumps({'username': username})
+        add_contact_data = json.dumps({'username': _contact_request['username']})
         add_contact_response = session.post(request_url, data=add_contact_data, headers=headers)
         print(add_contact_response.json()['message'])
+    else:
+        print('Contact already exists')
+        delete_request_data = json.dumps({'username': _contact_request['username']})
+        delete_request_response = session.delete(request_url, data=delete_request_data, headers=headers)
+        print(delete_request_response.json()['message'])
 
 
 def send_request(_username):
@@ -156,8 +164,13 @@ def send_request(_username):
 
 
 def receive_requests():
-    request_send_response = session.get(request_url, headers=headers)
-    return request_send_response.json()['requests']
+    request_receive_response = session.get(request_url, headers=headers)
+    return request_receive_response.json()['requests']
+
+
+def receive_contacts():
+    contact_receive_response = session.get(contacts_url, headers=headers)
+    return contact_receive_response.json()['contacts']
 
 
 def send_message(_username):
@@ -205,10 +218,12 @@ while cmd != 'x':
         code = verify_user(login_url, json_data)
         if code == 200:
             print('\nEnter a command: ')
-            print('[(s)end contact request, (r)eceive requests, (v)iew messages, send (m)essage, e(x)it')
+            print('[(s)end contact request, (r)eceive requests, view (c)ontacts' +
+                  ', (v)iew messages, send (m)essage, e(x)it')
             cmd = input().lower()
             while cmd != 'x':
-                while (cmd != 's' and cmd != 'r' and cmd != 'v' and cmd != 'm') or cmd == ' ' or cmd == '\n':
+                while ((cmd != 's' and cmd != 'r' and cmd != 'v' and cmd != 'm' and cmd != 'c')
+                       or cmd == ' ' or cmd == '\n'):
                     print('Enter a valid command')
                     cmd = input().lower()
 
@@ -224,14 +239,21 @@ while cmd != 'x':
                     if len(pending_requests) > 0:
                         index = int(input('Enter a request to accept: '))
 
-                        add_contact(username, pending_requests[index])
+                        add_contact(pending_requests[index])
+
+                elif cmd == 'c':
+                    contacts = receive_contacts()
+
+                    for r in range(0, len(contacts)):
+                        print('{}: username = {}'.format(r, contacts[r]['username']))
 
                 elif cmd == 'm':
                     sendto = input('Send message to: ')
                     send_message(sendto)
 
                 print('\nEnter a command: ')
-                print('[(s)end contact request, (r)eceive requests, (v)iew messages, send (m)essage, e(x)it')
+                print('[(s)end contact request, (r)eceive requests, (v)iew messages, view (c)ontacts' +
+                      'send (m)essage, e(x)it')
                 cmd = input().lower()
 
             exit(0)
