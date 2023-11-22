@@ -4,6 +4,7 @@ class Config:
     SECRET_KEY = secrets.token_bytes(32)
     DEBUG = False
     SQLALCHEMY_DATABASE_URI = 'sqlite:///prod.db'
+    TIME_THRESHOLD = 5 #seconds until timeout
 
 class DevelopmentConfig(Config):
     DEBUG = True

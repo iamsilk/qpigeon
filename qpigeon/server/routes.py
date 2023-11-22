@@ -1,9 +1,11 @@
 from flask import Blueprint, request, session, jsonify
-from .models import db, User, Contact, ContactRequest
+from .models import db, User, Contact, ContactRequest, UserNonces
 from .auth import auth_required, user_required
+import time
 import secrets
 import base64
 import oqs
+from .config import Config
 
 api = Blueprint('api', __name__)
 
@@ -195,6 +197,13 @@ def contact_request_send(user):
 
     username = data.get('username')
 
+    timestamp = data.get('timestamp')
+    nonce = data.get('nonce')  # check the nonce
+
+    # Check the timestamp is valid
+    if time.time() - timestamp > Config.TIME_THRESHOLD:
+        return jsonify({"message": "Timeout"}), 400
+
     # Check if username is present
     if not username or not isinstance(username, str):
         return jsonify({"message": "Username required"}), 400
@@ -203,11 +212,19 @@ def contact_request_send(user):
     requestee = User.query.filter_by(username=username).first()
     if not requestee:
         return jsonify({"message": "User not found"}), 400
-    
+
+    # Verify the nonce
+    if nonce in UserNonces.query.filter_by(user_id=requestee.id).all():
+        return jsonify({"message": "Nonce already exists"}), 400
+
+    contact_nonce = UserNonces(user_id=requestee.id, nonce=base64.b64decode(nonce))
+    db.session.add(contact_nonce)
+
     # Check if contact already exists
     if requestee in user.contacts:
         return jsonify({"message": "Contact already exists"}), 400
-    
+
+
     # Check if contact request already exists
     existing_contact_request = ContactRequest.query.filter_by(requester=user, requestee=requestee).first()
     if existing_contact_request:

@@ -124,6 +124,18 @@ venv.bak/
 .spyderproject
 .spyproject
 
+# Pycharm project settings
+.idea/
+
+# Key pairs
+/qpigeon/client/.dl2/
+
+# Nonces
+/qpigeon/client/nonces.json
+
+# Contacts
+/qpigeon/client/contacts.json
+
 # Rope project settings
 .ropeproject
 
