@@ -7,7 +7,14 @@ known_username = 'known_username'
 known_sig_alg = 'Dilithium2'
 with oqs.Signature(known_sig_alg) as signer:
     known_public_key = signer.generate_keypair()
-    known_sig_key_secret = signer.export_secret_key()
+    known_secret_key = signer.export_secret_key()
+
+
+sig_alg = 'Dilithium2'
+with oqs.Signature(sig_alg) as signer:
+    public_key = signer.generate_keypair()
+    secret_key = signer.export_secret_key()
+
 
 def setup_test_data(db):
     user = User(username=known_username,
