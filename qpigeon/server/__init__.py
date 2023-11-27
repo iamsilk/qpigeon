@@ -10,6 +10,10 @@ def create_app(config_class=Config):
     app = Flask(__name__)
 
     # Load config
+    app.config.update({
+        'SQLALCHEMY_DATABASE_URI': os.environ.get('DATABASE_URL'),
+    })
+
     app.config.from_object(config_class)
 
     # Setup database
