@@ -387,6 +387,9 @@ def contact_request_list(user, signature, timestamp, nonce, action):
             'username': request.user.username,
             'sig_alg': request.user.sig_alg,
             'sig_key': base64.b64encode(request.user.sig_key).decode(),
+            'kem_alg': request.user.kem_alg,
+            'kem_key': base64.b64encode(request.user.kem_key).decode(),
+            'kem_signature': base64.b64encode(request.user.kem_signature).decode(),
             'signed_request': request.signed_request
         } for request in user.contact_requests if request.signed_accept is None]
     }), 200
@@ -399,6 +402,9 @@ def contact_list(user, signature, timestamp, nonce, action):
             'username': contact.contact.username,
             'sig_alg': contact.contact.sig_alg,
             'sig_key': base64.b64encode(contact.contact.sig_key).decode(),
+            'kem_alg': contact.contact.kem_alg,
+            'kem_key': base64.b64encode(contact.contact.kem_key).decode(),
+            'kem_signature': base64.b64encode(contact.contact.kem_signature).decode(),
             'signed_accept': contact.signed_accept
         } for contact in user.contacts if contact.signed_accept is not None]
     }), 200

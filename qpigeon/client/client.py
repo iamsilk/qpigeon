@@ -44,7 +44,8 @@ class Client():
         self.known_kems = {}
         
         self.callbacks = {
-            'new_signature': []
+            'new_signature': [],
+            'new_kem': []
         }
 
     def load_sig_key(self, sig_alg, sig_secret_key, sig_public_key):
@@ -93,7 +94,6 @@ class Client():
         self.known_signatures = known_signatures
     
     def add_new_signature(self, username, sig_alg, sig_public_key, overwrite=False):
-        print('add_new_signature', username)
         if overwrite:
             self.known_signatures[username] = {
                 'sig_alg': sig_alg,
@@ -121,21 +121,32 @@ class Client():
     def load_known_kems(self, known_kems):
         self.known_kems = known_kems
         
-    def add_new_kem(self, username, kem_alg, kem_public_key, signature):
-        known_signature = self.known_signatures.get(username)
+    def add_new_kem(self, username, kem_alg, kem_public_key, kem_signature):
+        if username not in self.known_signatures:
+            raise ClientError(f"Cannot verify {username}'s KEM as they are not a known contact.")
         
-        if not known_signature:
-            raise ClientError(f"Unknown contact {username}.")
+        known_sig = self.known_signatures[username]
         
-        sig_alg, sig_public_key = known_signature['sig_alg'], base64.b64decode(known_signature['sig_public_key'])
+        known_kem = self.known_kems.get(username)
         
-        if not verify_signature(sig_alg, sig_public_key, signature, kem_alg, kem_public_key):
-            raise ClientError(f"Invalid signature for {username}'s KEM. Possible tampering detected.")
+        if known_kem and known_kem['kem_alg'] == kem_alg and known_kem['kem_public_key'] == kem_public_key:
+            return # do nothing
+        
+        if not verify_signature(known_sig['sig_alg'],
+                                base64.b64decode(known_sig['sig_public_key']),
+                                base64.b64decode(kem_signature),
+                                base64.b64decode(kem_public_key)):
+            raise ClientError(f"KEM signature for {username} is invalid. Possible tampering detected.")
         
         self.known_kems[username] = {
             'kem_alg': kem_alg,
-            'kem_public_key': kem_public_key
+            'kem_public_key': kem_public_key,
+            'kem_signature': kem_signature
         }
+        
+        # run callbacks
+        for callback in self.callbacks['new_kem']:
+            callback(username, kem_alg, kem_public_key, kem_signature)
 
     def register(self, username):
         if not self.sig_alg:
@@ -239,7 +250,9 @@ class Client():
         contacts = response.json()['contacts']
         
         for contact in contacts:
+            print(contact)
             self.add_new_signature(contact['username'], contact['sig_alg'], contact['sig_key'])
+            self.add_new_kem(contact['username'], contact['kem_alg'], contact['kem_key'], contact['kem_signature'])
         
         return contacts
 

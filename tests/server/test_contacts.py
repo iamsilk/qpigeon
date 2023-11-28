@@ -5,16 +5,25 @@ from qpigeon.shared.crypto import verify_signature
 
 def test_contact_request_send(client):
     sig_alg = test_data.known_sig_alg
+    kem_alg = test_data.known_kem_alg
 
     # Register user 1
     username_1 = 'user1'
     sig_key_public_1, sig_key_secret_1 = helpers.generate_sig_keypair(sig_alg)
-    helpers.register(client, username_1, sig_alg, sig_key_public_1, sig_key_secret_1)
+    kem_key_public_1, kem_key_secret_1 = helpers.generate_kem_keypair(kem_alg)
+    kem_key_signature_1 = helpers.sign_kem(kem_key_public_1, sig_alg, sig_key_secret_1)
+    
+    helpers.register(client, username_1, sig_alg, sig_key_public_1, sig_key_secret_1,
+                     test_data.known_kem_alg, kem_key_public_1, kem_key_secret_1, kem_key_signature_1)
 
     # Register user 2
     username_2 = 'user2'
     sig_key_public_2, sig_key_secret_2 = helpers.generate_sig_keypair(sig_alg)
-    helpers.register(client, username_2, sig_alg, sig_key_public_2, sig_key_secret_2)
+    kem_key_public_2, kem_key_secret_2 = helpers.generate_kem_keypair(kem_alg)
+    kem_key_signature_2 = helpers.sign_kem(kem_key_public_2, sig_alg, sig_key_secret_2)
+        
+    helpers.register(client, username_2, sig_alg, sig_key_public_2, sig_key_secret_2,
+                     test_data.known_kem_alg, kem_key_public_2, kem_key_secret_2, kem_key_signature_2)
     
     # Login user 1
     helpers.login(client, username_1, sig_alg, sig_key_secret_1)
@@ -34,6 +43,9 @@ def test_contact_request_send(client):
     assert request_list[0]['username'] == username_1
     assert request_list[0]['sig_alg'] == sig_alg
     assert request_list[0]['sig_key'] == base64.b64encode(sig_key_public_1).decode()
+    assert request_list[0]['kem_alg'] == kem_alg
+    assert request_list[0]['kem_key'] == base64.b64encode(kem_key_public_1).decode()
+    assert request_list[0]['kem_signature'] == base64.b64encode(kem_key_signature_1).decode()
     
     signed_request = request_list[0]['signed_request']
     assert signed_request is not None
@@ -49,16 +61,25 @@ def test_contact_request_send(client):
 
 def test_contact_request_accept(client):
     sig_alg = test_data.known_sig_alg
+    kem_alg = test_data.known_kem_alg
 
     # Register user 1
     username_1 = 'user1'
     sig_key_public_1, sig_key_secret_1 = helpers.generate_sig_keypair(sig_alg)
-    helpers.register(client, username_1, sig_alg, sig_key_public_1, sig_key_secret_1)
+    kem_key_public_1, kem_key_secret_1 = helpers.generate_kem_keypair(kem_alg)
+    kem_key_signature_1 = helpers.sign_kem(kem_key_public_1, sig_alg, sig_key_secret_1)
+    
+    helpers.register(client, username_1, sig_alg, sig_key_public_1, sig_key_secret_1,
+                     test_data.known_kem_alg, kem_key_public_1, kem_key_secret_1, kem_key_signature_1)
 
     # Register user 2
     username_2 = 'user2'
     sig_key_public_2, sig_key_secret_2 = helpers.generate_sig_keypair(sig_alg)
-    helpers.register(client, username_2, sig_alg, sig_key_public_2, sig_key_secret_2)
+    kem_key_public_2, kem_key_secret_2 = helpers.generate_kem_keypair(kem_alg)
+    kem_key_signature_2 = helpers.sign_kem(kem_key_public_2, sig_alg, sig_key_secret_2)
+        
+    helpers.register(client, username_2, sig_alg, sig_key_public_2, sig_key_secret_2,
+                     test_data.known_kem_alg, kem_key_public_2, kem_key_secret_2, kem_key_signature_2)
     
     # Login user 1
     helpers.login(client, username_1, sig_alg, sig_key_secret_1)
@@ -90,6 +111,9 @@ def test_contact_request_accept(client):
     assert contact_list[0]['username'] == username_1
     assert contact_list[0]['sig_alg'] == sig_alg
     assert contact_list[0]['sig_key'] == base64.b64encode(sig_key_public_1).decode()
+    assert contact_list[0]['kem_alg'] == kem_alg
+    assert contact_list[0]['kem_key'] == base64.b64encode(kem_key_public_1).decode()
+    assert contact_list[0]['kem_signature'] == base64.b64encode(kem_key_signature_1).decode()
     
     signed_accept = contact_list[0]['signed_accept']
     assert signed_accept is not None
@@ -112,6 +136,9 @@ def test_contact_request_accept(client):
     assert contact_list[0]['username'] == username_2
     assert contact_list[0]['sig_alg'] == sig_alg
     assert contact_list[0]['sig_key'] == base64.b64encode(sig_key_public_2).decode()
+    assert contact_list[0]['kem_alg'] == kem_alg
+    assert contact_list[0]['kem_key'] == base64.b64encode(kem_key_public_2).decode()
+    assert contact_list[0]['kem_signature'] == base64.b64encode(kem_key_signature_2).decode()
     
     signed_accept = contact_list[0]['signed_accept']
     assert signed_accept is not None
@@ -127,16 +154,25 @@ def test_contact_request_accept(client):
 
 def test_contact_request_reject(client):
     sig_alg = test_data.known_sig_alg
+    kem_alg = test_data.known_kem_alg
 
     # Register user 1
     username_1 = 'user1'
     sig_key_public_1, sig_key_secret_1 = helpers.generate_sig_keypair(sig_alg)
-    helpers.register(client, username_1, sig_alg, sig_key_public_1, sig_key_secret_1)
+    kem_key_public_1, kem_key_secret_1 = helpers.generate_kem_keypair(kem_alg)
+    kem_key_signature_1 = helpers.sign_kem(kem_key_public_1, sig_alg, sig_key_secret_1)
+    
+    helpers.register(client, username_1, sig_alg, sig_key_public_1, sig_key_secret_1,
+                     test_data.known_kem_alg, kem_key_public_1, kem_key_secret_1, kem_key_signature_1)
 
     # Register user 2
     username_2 = 'user2'
     sig_key_public_2, sig_key_secret_2 = helpers.generate_sig_keypair(sig_alg)
-    helpers.register(client, username_2, sig_alg, sig_key_public_2, sig_key_secret_2)
+    kem_key_public_2, kem_key_secret_2 = helpers.generate_kem_keypair(kem_alg)
+    kem_key_signature_2 = helpers.sign_kem(kem_key_public_2, sig_alg, sig_key_secret_2)
+        
+    helpers.register(client, username_2, sig_alg, sig_key_public_2, sig_key_secret_2,
+                     test_data.known_kem_alg, kem_key_public_2, kem_key_secret_2, kem_key_signature_2)
     
     # Login user 1
     helpers.login(client, username_1, sig_alg, sig_key_secret_1)
@@ -168,16 +204,25 @@ def test_contact_request_reject(client):
 
 def test_contact_remove(client):
     sig_alg = test_data.known_sig_alg
+    kem_alg = test_data.known_kem_alg
 
     # Register user 1
     username_1 = 'user1'
     sig_key_public_1, sig_key_secret_1 = helpers.generate_sig_keypair(sig_alg)
-    helpers.register(client, username_1, sig_alg, sig_key_public_1, sig_key_secret_1)
+    kem_key_public_1, kem_key_secret_1 = helpers.generate_kem_keypair(kem_alg)
+    kem_key_signature_1 = helpers.sign_kem(kem_key_public_1, sig_alg, sig_key_secret_1)
+    
+    helpers.register(client, username_1, sig_alg, sig_key_public_1, sig_key_secret_1,
+                     test_data.known_kem_alg, kem_key_public_1, kem_key_secret_1, kem_key_signature_1)
 
     # Register user 2
     username_2 = 'user2'
     sig_key_public_2, sig_key_secret_2 = helpers.generate_sig_keypair(sig_alg)
-    helpers.register(client, username_2, sig_alg, sig_key_public_2, sig_key_secret_2)
+    kem_key_public_2, kem_key_secret_2 = helpers.generate_kem_keypair(kem_alg)
+    kem_key_signature_2 = helpers.sign_kem(kem_key_public_2, sig_alg, sig_key_secret_2)
+        
+    helpers.register(client, username_2, sig_alg, sig_key_public_2, sig_key_secret_2,
+                     test_data.known_kem_alg, kem_key_public_2, kem_key_secret_2, kem_key_signature_2)
     
     # Login user 1
     helpers.login(client, username_1, sig_alg, sig_key_secret_1)

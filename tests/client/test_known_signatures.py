@@ -2,7 +2,7 @@ import base64
 import test_data
 
 
-def test_known_signatures(remote_client_generator):
+def test_known_signatures_and_kems(remote_client_generator):
     client_1 = remote_client_generator()
     client_2 = remote_client_generator()
     
@@ -26,7 +26,15 @@ def test_known_signatures(remote_client_generator):
     
     assert client_1.known_signatures == {
         'user2': {
-            'sig_alg': test_data.sig_alg,
+            'sig_alg': client_2.sig_alg,
             'sig_public_key': base64.b64encode(client_2.sig_public_key).decode()
+        }
+    }
+    
+    assert client_1.known_kems == {
+        'user2': {
+            'kem_alg': client_2.kem_alg,
+            'kem_public_key': base64.b64encode(client_2.kem_public_key).decode(),
+            'kem_signature': base64.b64encode(client_2.kem_signature).decode()
         }
     }

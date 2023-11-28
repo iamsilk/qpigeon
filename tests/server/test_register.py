@@ -26,7 +26,7 @@ def test_register_user_exists(client):
     sig_alg = test_data.known_sig_alg
     kem_alg = test_data.known_kem_alg
     sig_key_public, sig_key_secret = helpers.generate_sig_keypair(sig_alg)
-    kem_key_public, kem_key_secret = helpers.generate_kem_keypair(sig_alg)
+    kem_key_public, kem_key_secret = helpers.generate_kem_keypair(kem_alg)
     kem_key_signature = helpers.sign_kem(kem_key_public, sig_alg, sig_key_secret)
 
     # Request challenge
@@ -34,7 +34,8 @@ def test_register_user_exists(client):
                                               kem_alg, kem_key_public, kem_key_signature)
 
     assert response.status_code == 200
-    assert 'challenge' in response.json
+    assert 'sig_challenge' in response.json
+    assert 'kem_challenge' in response.json
 
     sig_challenge = base64.b64decode(response.json['sig_challenge'])
     kem_challenge = base64.b64decode(response.json['kem_challenge'])
