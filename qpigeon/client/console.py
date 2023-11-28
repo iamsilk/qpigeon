@@ -1,5 +1,6 @@
 import argparse
 import base64
+import datetime
 import os
 import json
 
@@ -259,14 +260,26 @@ class ConsoleClient():
     def add_contact(self):
         username = input('Contact Username> ')
         result = self.client.add_contact(username)
-        if result:
-            print(result)
+        if not result:
+            print('Error occurred while adding contact.')
+            return
+        
+        # force update contact list
+        self.client.get_contacts()
+        
+        print(result)
     
     def remove_contact(self):
         username = input('Contact Username> ')
         result = self.client.remove_contact(username)
-        if result:
-            print(result)
+        if not result:
+            print('Error occurred while removing contact.')
+            return
+        
+        # force update contact list
+        self.client.get_contacts()
+        
+        print(result)
     
     def list_contacts(self):
         contacts = self.client.get_contacts()
@@ -284,8 +297,10 @@ class ConsoleClient():
         username = input('Contact Username> ')
         message = input('Message> ')
         result = self.client.send_message(username, message)
-        if result:
-            print(result)
+        if not result:
+            print('Error occurred while sending message.')
+            return
+        print(result)
     
     def list_messages(self):
         username = input('Contact Username> ')
@@ -296,7 +311,9 @@ class ConsoleClient():
         
         print(f'Conversation with {username} ({len(messages)}):')
         for message in messages:
-            print(f'- {message['username']}:')
+            message_username = username if message['incoming'] else self.client.username
+            message_time = datetime.datetime.fromtimestamp(message['timestamp'], datetime.UTC).strftime('%Y-%m-%d %H:%M:%S')
+            print(f'- {message_username} at {message_time}')
             print(f'  {message['message']}')
             
     

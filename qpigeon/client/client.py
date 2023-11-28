@@ -371,6 +371,9 @@ class Client():
         if not self.logged_in:
             raise ClientError("Not logged in.")
         
+        if username not in self.known_kems:
+            raise ClientError(f"Cannot send message to {username} as they are not a known contact. Try refreshing the contact list.")
+        
         known_kem = self.known_kems[username]
         encrypted_key, encrypted_message = encrypt_data(
             known_kem['kem_alg'],
@@ -390,8 +393,6 @@ class Client():
             'encrypted_key': base64.b64encode(encrypted_key).decode(),
             'encrypted_message': base64.b64encode(encrypted_message).decode(),
         })
-        
-        print(encrypted_message)
         
         _raise_if_bad(response)
         
@@ -444,12 +445,10 @@ class Client():
                                     timestamp, nonce, action, self.username, encrypted_key, encrypted_message):
                 raise ClientError(f"Message signature for {username} is invalid. Possible tampering detected.")
             
-            print(encrypted_message)
-            
             # decrypt message
             message_text = decrypt_data(self.kem_alg, self.kem_secret_key, encrypted_key, encrypted_message).decode('utf-8')
             
             # record message
             self.record_message(username, True, timestamp, base64.b64encode(nonce).decode(), message_text)
         
-        return self.messages[username]
+        return self.messages.get(username, [])

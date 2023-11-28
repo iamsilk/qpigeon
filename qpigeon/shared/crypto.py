@@ -1,5 +1,3 @@
-import base64
-import json
 import hashlib
 import oqs
 import struct
@@ -13,22 +11,13 @@ class AESCipher():
         self.key = hashlib.sha256(key).digest()
 
     def encrypt(self, raw):
-        print('raw', raw)
         raw = self._pad(raw)
-        print('raw padded', raw)
         iv = Random.new().read(AES.block_size)
         cipher = AES.new(self.key, AES.MODE_CBC, iv)
-        print('key', self.key)
-        print('iv', iv)
-        print('len', AES.block_size, len(iv))
         return iv + cipher.encrypt(raw.encode())
 
     def decrypt(self, enc):
         iv = enc[:AES.block_size]
-        print('key', self.key)
-        print('enc', enc)
-        print('iv', iv)
-        print('len', AES.block_size, len(iv))
         cipher = AES.new(self.key, AES.MODE_CBC, iv)
         return AESCipher._unpad(cipher.decrypt(enc[AES.block_size:]))
 

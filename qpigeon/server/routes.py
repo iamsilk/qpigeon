@@ -80,7 +80,7 @@ def register_challenge():
     
     # Check if username is length
 
-    min_username_len = 4
+    min_username_len = 2
     max_username_len = 64
 
     if len(username) < min_username_len or len(username) > max_username_len:
@@ -428,6 +428,9 @@ def message_send(user, signature, timestamp, nonce, action, username, encrypted_
     if not other_user:
         # TODO: Avoid timing attacks
         return jsonify({"message": "Contact not found"}), 400
+    
+    if user == other_user:
+        return jsonify({"message": "Cannot send message to self"}), 400
     
     # Check if contact exists
     contact = Contact.query.filter_by(user=other_user, contact=user).first()
