@@ -1,6 +1,7 @@
 import base64
 import helpers
 import test_data
+from qpigeon.shared.crypto import verify_signature
 
 def test_contact_request_send(client):
     sig_alg = test_data.known_sig_alg
@@ -21,7 +22,7 @@ def test_contact_request_send(client):
     # Send request to user 2
     helpers.contact_add(client, sig_alg, sig_key_secret_1, username_2)
 
-    # Request sent against should work
+    # Request sent again should work
     helpers.contact_add(client, sig_alg, sig_key_secret_1, username_2)
 
     # Login user 2
@@ -33,6 +34,18 @@ def test_contact_request_send(client):
     assert request_list[0]['username'] == username_1
     assert request_list[0]['sig_alg'] == sig_alg
     assert request_list[0]['sig_key'] == base64.b64encode(sig_key_public_1).decode()
+    
+    signed_request = request_list[0]['signed_request']
+    assert signed_request is not None
+    assert verify_signature(
+        sig_alg,
+        sig_key_public_1,
+        base64.b64decode(signed_request['signature']),
+        signed_request['timestamp'],
+        base64.b64decode(signed_request['nonce']),
+        signed_request['action'],
+        signed_request['username']
+    )
 
 def test_contact_request_accept(client):
     sig_alg = test_data.known_sig_alg
@@ -77,6 +90,18 @@ def test_contact_request_accept(client):
     assert contact_list[0]['username'] == username_1
     assert contact_list[0]['sig_alg'] == sig_alg
     assert contact_list[0]['sig_key'] == base64.b64encode(sig_key_public_1).decode()
+    
+    signed_accept = contact_list[0]['signed_accept']
+    assert signed_accept is not None
+    assert verify_signature(
+        sig_alg,
+        sig_key_public_1,
+        base64.b64decode(signed_accept['signature']),
+        signed_accept['timestamp'],
+        base64.b64decode(signed_accept['nonce']),
+        signed_accept['action'],
+        signed_accept['username']
+    )
 
     # Login user 1
     helpers.login(client, username_1, sig_alg, sig_key_secret_1)
@@ -87,6 +112,18 @@ def test_contact_request_accept(client):
     assert contact_list[0]['username'] == username_2
     assert contact_list[0]['sig_alg'] == sig_alg
     assert contact_list[0]['sig_key'] == base64.b64encode(sig_key_public_2).decode()
+    
+    signed_accept = contact_list[0]['signed_accept']
+    assert signed_accept is not None
+    assert verify_signature(
+        sig_alg,
+        sig_key_public_2,
+        base64.b64decode(signed_accept['signature']),
+        signed_accept['timestamp'],
+        base64.b64decode(signed_accept['nonce']),
+        signed_accept['action'],
+        signed_accept['username']
+    )
 
 def test_contact_request_reject(client):
     sig_alg = test_data.known_sig_alg
