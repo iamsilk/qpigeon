@@ -63,7 +63,16 @@ def data_verification_required(data_fields: list[tuple[str, type]]=[]):
             action = data.get('action')
 
             for field, field_type in data_fields:
-                if field not in data or not isinstance(data[field], field_type):
+                if field not in data:
+                    return jsonify({"message": f"{field.capitalize()} required"}), 400
+                
+                if field_type == bytes and isinstance(data[field], str):
+                    try:
+                        data[field] = base64.b64decode(data[field], validate=True)
+                    except Exception:
+                        return jsonify({"message": f"{field.capitalize()} must be base64 encoded"}), 400
+                
+                if not isinstance(data[field], field_type):
                     return jsonify({"message": f"{field.capitalize()} required"}), 400
             
             if not signature or not isinstance(signature, str):
@@ -74,7 +83,7 @@ def data_verification_required(data_fields: list[tuple[str, type]]=[]):
             except Exception:
                 return jsonify({"message": "Signature must be base64 encoded"}), 400
             
-            if not timestamp or (not isinstance(timestamp, int) and not isinstance(timestamp, float)):
+            if not timestamp or not isinstance(timestamp, int):
                 return jsonify({"message": "Timestamp required"}), 400
             
             if not nonce or not isinstance(nonce, str):

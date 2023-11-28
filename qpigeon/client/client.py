@@ -1,4 +1,5 @@
 import base64
+import bisect
 import datetime
 import oqs
 import os
@@ -42,6 +43,8 @@ class Client():
         self.nonces = []
         self.known_signatures = {}
         self.known_kems = {}
+        
+        self.messages = {}
         
         self.callbacks = {
             'new_signature': [],
@@ -93,7 +96,7 @@ class Client():
     def load_known_signatures(self, known_signatures):
         self.known_signatures = known_signatures
     
-    def add_new_signature(self, username, sig_alg, sig_public_key, overwrite=False):
+    def record_new_signature(self, username, sig_alg, sig_public_key, overwrite=False):
         if overwrite:
             self.known_signatures[username] = {
                 'sig_alg': sig_alg,
@@ -121,7 +124,7 @@ class Client():
     def load_known_kems(self, known_kems):
         self.known_kems = known_kems
         
-    def add_new_kem(self, username, kem_alg, kem_public_key, kem_signature):
+    def record_new_kem(self, username, kem_alg, kem_public_key, kem_signature):
         if username not in self.known_signatures:
             raise ClientError(f"Cannot verify {username}'s KEM as they are not a known contact.")
         
@@ -147,6 +150,41 @@ class Client():
         # run callbacks
         for callback in self.callbacks['new_kem']:
             callback(username, kem_alg, kem_public_key, kem_signature)
+
+    def load_messages(self, messages):
+        self.messages = messages
+        
+        # sort messages by timestamp
+        for username, messages in self.messages.items():
+            self.messages[username] = sorted(messages, key=lambda x: x['timestamp'])
+
+    def record_message(self, username, incoming, timestamp, nonce, message):
+        if username not in self.messages:
+            self.messages[username] = []
+            
+        message_obj = {
+            'incoming': incoming,
+            'timestamp': timestamp,
+            'nonce': nonce,
+            'message': message,
+        }
+        
+        if message_obj in self.messages[username]:
+            return
+        
+        if not incoming:
+            bisect.insort(self.messages[username], message_obj, key=lambda x: x['timestamp'])
+            return
+        
+        if len(self.messages[username]) > 0 and self.messages[username][-1]['timestamp'] > timestamp:
+            raise ClientError("Received message that is older than latest message. Possible tampering detected.")
+        
+        self.messages[username].append({
+            'incoming': incoming,
+            'timestamp': timestamp,
+            'nonce': nonce,
+            'message': message,
+        })
 
     def register(self, username):
         if not self.sig_alg:
@@ -250,9 +288,8 @@ class Client():
         contacts = response.json()['contacts']
         
         for contact in contacts:
-            print(contact)
-            self.add_new_signature(contact['username'], contact['sig_alg'], contact['sig_key'])
-            self.add_new_kem(contact['username'], contact['kem_alg'], contact['kem_key'], contact['kem_signature'])
+            self.record_new_signature(contact['username'], contact['sig_alg'], contact['sig_key'])
+            self.record_new_kem(contact['username'], contact['kem_alg'], contact['kem_key'], contact['kem_signature'])
         
         return contacts
 
@@ -324,4 +361,85 @@ class Client():
         if not self.username:
             raise ClientError("Not logged in.")
         
-        pass
+        known_kem = self.known_kems[username]
+        encrypted_key, encrypted_message = encrypt_data(
+            known_kem['kem_alg'],
+            base64.b64decode(known_kem['kem_public_key']),
+            message
+        )
+        
+        action = '/api/message/send'
+        signature, timestamp, nonce = self.craft_signature(action, username, encrypted_key, encrypted_message)
+        
+        response = self.session.post(self.endpoint + action, json={
+            'signature': base64.b64encode(signature).decode(),
+            'timestamp': timestamp,
+            'nonce': base64.b64encode(nonce).decode(),
+            'action': action,
+            'username': username,
+            'encrypted_key': base64.b64encode(encrypted_key).decode(),
+            'encrypted_message': base64.b64encode(encrypted_message).decode(),
+        })
+        
+        print(encrypted_message)
+        
+        _raise_if_bad(response)
+        
+        if response.status_code != 200:
+            return False
+        
+        if username not in self.messages:
+            self.messages[username] = []
+        
+        self.record_message(username, False, timestamp, base64.b64encode(nonce).decode(), message)
+        
+        return response.json()['message']
+    
+    def get_messages(self, username):
+        if not self.username:
+            raise ClientError("Not logged in.")
+        
+        action = '/api/message/list'
+        signature, timestamp, nonce = self.craft_signature(action, username)
+        
+        response = self.session.get(self.endpoint + action, json={
+            'signature': base64.b64encode(signature).decode(),
+            'timestamp': timestamp,
+            'nonce': base64.b64encode(nonce).decode(),
+            'action': action,
+            'username': username,
+        })
+        
+        _raise_if_bad(response)
+        
+        if response.status_code != 200:
+            return False
+        
+        messages = response.json()['messages']
+        
+        # sort messages by timestamp
+        messages.sort(key=lambda x: x['timestamp'])
+        
+        # decrypt messages
+        for message in messages:
+            signature = base64.b64decode(message['signature'])
+            timestamp = message['timestamp']
+            nonce = base64.b64decode(message['nonce'])
+            action = message['action']
+            encrypted_key = base64.b64decode(message['encrypted_key'])
+            encrypted_message = base64.b64decode(message['encrypted_message'])
+            
+            # verify signature
+            if not verify_signature(self.sig_alg, base64.b64decode(self.known_signatures[username]['sig_public_key']), signature,
+                                    timestamp, nonce, action, self.username, encrypted_key, encrypted_message):
+                raise ClientError(f"Message signature for {username} is invalid. Possible tampering detected.")
+            
+            print(encrypted_message)
+            
+            # decrypt message
+            message_text = decrypt_data(self.kem_alg, self.kem_secret_key, encrypted_key, encrypted_message).decode('utf-8')
+            
+            # record message
+            self.record_message(username, True, timestamp, base64.b64encode(nonce).decode(), message_text)
+        
+        return self.messages[username]

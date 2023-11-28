@@ -10,19 +10,27 @@ from Crypto.Cipher import AES
 class AESCipher():
     def __init__(self, key):
         self.bs = AES.block_size
-        self.key = hashlib.sha256(key.encode()).digest()
+        self.key = hashlib.sha256(key).digest()
 
     def encrypt(self, raw):
+        print('raw', raw)
         raw = self._pad(raw)
+        print('raw padded', raw)
         iv = Random.new().read(AES.block_size)
         cipher = AES.new(self.key, AES.MODE_CBC, iv)
-        return base64.b64encode(iv + cipher.encrypt(raw.encode()))
+        print('key', self.key)
+        print('iv', iv)
+        print('len', AES.block_size, len(iv))
+        return iv + cipher.encrypt(raw.encode())
 
     def decrypt(self, enc):
-        enc = base64.b64decode(enc)
         iv = enc[:AES.block_size]
+        print('key', self.key)
+        print('enc', enc)
+        print('iv', iv)
+        print('len', AES.block_size, len(iv))
         cipher = AES.new(self.key, AES.MODE_CBC, iv)
-        return AESCipher._unpad(cipher.decrypt(enc[AES.block_size:])).decode('utf-8')
+        return AESCipher._unpad(cipher.decrypt(enc[AES.block_size:]))
 
     def _pad(self, s):
         return s + (self.bs - len(s) % self.bs) * chr(self.bs - len(s) % self.bs)
@@ -41,7 +49,6 @@ def decrypt_data(kem_alg, kem_secret_key, encap_key, encrypted_data):
     key = decap_key(kem_alg, kem_secret_key, encap_key)
     aes = AESCipher(key)
     data = aes.decrypt(encrypted_data)
-    data = json.loads(data)
     return data
 
 
@@ -52,11 +59,10 @@ def encap_key(kem_alg, kem_public_key):
 
 
 def encrypt_data(kem_alg, kem_public_key, data):
-    encap_key, key = encap_key(kem_alg, kem_public_key)
+    encrypted_key, key = encap_key(kem_alg, kem_public_key)
     aes = AESCipher(key)
-    data = json.dumps(data)
     encrypted_data = aes.encrypt(data)
-    return encap_key, encrypted_data
+    return encrypted_key, encrypted_data
 
 def _convert_to_bytes(arg):
     if isinstance(arg, int):

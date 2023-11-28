@@ -1,5 +1,5 @@
 from flask import Blueprint, current_app, request, session, jsonify
-from .models import db, User, Contact
+from .models import db, User, Contact, Message
 from .auth import data_verification_required
 import secrets
 import base64
@@ -407,4 +407,72 @@ def contact_list(user, signature, timestamp, nonce, action):
             'kem_signature': base64.b64encode(contact.contact.kem_signature).decode(),
             'signed_accept': contact.signed_accept
         } for contact in user.contacts if contact.signed_accept is not None]
+    }), 200
+
+
+@api.route('/message/send', methods=['POST'])
+@data_verification_required([
+    ('username', str),
+    ('encrypted_key', bytes),
+    ('encrypted_message', bytes)
+])
+def message_send(user, signature, timestamp, nonce, action, username, encrypted_key, encrypted_message):
+    # Get user
+    other_user = User.query.filter_by(username=username).first()
+    if not other_user:
+        # TODO: Avoid timing attacks
+        return jsonify({"message": "Contact not found"}), 400
+    
+    # Check if contact exists
+    contact = Contact.query.filter_by(user=other_user, contact=user).first()
+    if not contact:
+        return jsonify({"message": "Contact not found"}), 400
+    
+    try:
+        # Add message to database
+        message = Message(
+            sender=user,
+            recipient=other_user,
+            timestamp=timestamp,
+            signed_message={
+                'signature': base64.b64encode(signature).decode(),
+                'timestamp': timestamp,
+                'nonce': base64.b64encode(nonce).decode(),
+                'action': action,
+                'username': username,
+                'encrypted_key': base64.b64encode(encrypted_key).decode(),
+                'encrypted_message': base64.b64encode(encrypted_message).decode()
+            }
+        )
+        
+        db.session.add(message)
+        db.session.commit()
+        
+        return jsonify({"message": "Message sent"}), 200
+    except Exception as e:
+        db.session.rollback()
+        print(e)
+        return jsonify({"message": "Error sending message"}), 400
+    
+@api.route('/message/list', methods=['GET'])
+@data_verification_required([
+    ('username', str)
+])
+def message_list(user, signature, timestamp, nonce, action, username):
+    # Get user
+    other_user = User.query.filter_by(username=username).first()
+    if not other_user:
+        return jsonify({"message": "Contact not found"}), 400
+    
+    # Check if contact exists
+    contact = Contact.query.filter_by(user=user, contact=other_user).first()
+    contact_other = Contact.query.filter_by(user=other_user, contact=user).first()
+    if not contact and not contact_other:
+        return jsonify({"message": "Contact not found"}), 400
+    
+    # Get messages
+    messages = Message.query.filter_by(sender=other_user, recipient=user).limit(30).all()
+    
+    return jsonify({
+        'messages': [message.signed_message for message in messages]
     }), 200

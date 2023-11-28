@@ -31,6 +31,20 @@ class User(db.Model):
         backref='user',
         lazy=True
     )
+    
+    outgoing_messages = db.relationship(
+        'Message',
+        foreign_keys='Message.sender_id',
+        backref='sender',
+        lazy=True
+    )
+    
+    incoming_messages = db.relationship(
+        'Message',
+        foreign_keys='Message.recipient_id',
+        backref='recipient',
+        lazy=True
+    )
 
 
 class Contact(db.Model):
@@ -52,3 +66,14 @@ class UserNonces(db.Model):
 
     db.UniqueConstraint('user_id', 'nonce', name='unique_user_nonce')
     db.Index('user_nonce_idx', 'user_id')
+
+
+class Message(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    sender_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    recipient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    timestamp = db.Column(db.Integer, nullable=False)
+    signed_message = db.Column(db.JSON, nullable=False)
+
+    db.Index('sender_id_idx', 'sender_id')
+    db.Index('recipient_id_idx', 'recipient_id')
