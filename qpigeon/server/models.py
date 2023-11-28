@@ -13,51 +13,34 @@ class User(db.Model):
         foreign_keys='Contact.user_id',
         backref='user',
         lazy=True
-        )
+    )
     
-    incoming_contacts = db.relationship(
+    contact_requests = db.relationship(
         'Contact',
         foreign_keys='Contact.contact_id',
         backref='contact',
         lazy=True
-        )
-    
-    incoming_contact_requests = db.relationship(
-        'ContactRequest',
-        foreign_keys='ContactRequest.requestee_id',
-        backref='requestee',
-        lazy=True
-        )
+    )
 
     nonces = db.relationship(
         'UserNonces',
         foreign_keys='UserNonces.user_id',
         backref='user',
         lazy=True
-        )
+    )
 
-    outgoing_contact_requests = db.relationship(
-        'ContactRequest',
-        foreign_keys='ContactRequest.requester_id',
-        backref='requester',
-        lazy=True
-        )
 
 class Contact(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     contact_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    signed_accept = db.Column(db.JSON, nullable=True)
+    signed_request = db.Column(db.JSON, nullable=False)
 
     db.UniqueConstraint('user_id', 'contact_id', name='unique_contact')
-    db.Index('contact_user_id_idx', 'user_id')
+    db.Index('user_id_idx', 'user_id')
+    db.Index('contact_id_idx', 'contact_id')
 
-class ContactRequest(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    requester_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    requestee_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    
-    db.UniqueConstraint('requester_id', 'requestee_id', name='unique_contact_request')
-    db.Index('requestee_id_idx', 'requestee_id')
 
 class UserNonces(db.Model):
     id = db.Column(db.Integer, primary_key=True)

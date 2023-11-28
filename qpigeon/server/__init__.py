@@ -1,4 +1,5 @@
 from flask import Flask
+from flask_session import Session
 from .models import db
 from .routes import api
 from .config import Config
@@ -15,6 +16,9 @@ def create_app(config_class=Config):
     })
 
     app.config.from_object(config_class)
+    
+    # Setup sessions
+    Session(app)
 
     # Setup database
     db.init_app(app)

@@ -26,7 +26,7 @@ def test_register_user_exists(client):
     challenge = base64.b64decode(response.json['challenge'])
 
     # Sign challenge
-    challenge_signed = helpers.sign_challenge(sig_alg, sig_key_secret, challenge)
+    challenge_signed = helpers.sign_data(sig_alg, sig_key_secret, challenge)
 
     # Submit signed challenge
     response = client.post('/api/register/submit', json={

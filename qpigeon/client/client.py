@@ -1,6 +1,7 @@
 import base64
 import oqs
 import requests
+from datetime import datetime
 
 
 class ClientError(Exception):
@@ -80,7 +81,7 @@ class Client():
         pass
 
     def send_contact_request(username):
-        pass
+        time = time.time()
 
     def accept_contact_request(username):
         pass

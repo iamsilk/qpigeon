@@ -35,3 +35,4 @@ with oqs.KeyEncapsulation(kemalg) as client:
         shared_secret_client = client.decap_secret(ciphertext)
 
         print("\nShared secretes coincide:", shared_secret_client == shared_secret_server)
+        print(len(shared_secret_client))

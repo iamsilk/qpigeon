@@ -1,3 +1,6 @@
 flask
 flask_sqlalchemy
+Flask-Session
+python-memcached
 psycopg2
+pycryptodome

@@ -23,13 +23,13 @@ ENV PYTHONPATH=$PYTHONPATH:/opt/liboqs-python
 
 WORKDIR /app
 
-# copy source code
-COPY qpigeon/server ./qpigeon/server
-
 # install requirements
-RUN echo "/opt/liboqs-python" >> qpigeon/server/requirements.txt
-RUN pip install --no-cache-dir --upgrade -r qpigeon/server/requirements.txt
+COPY requirements_dev.txt .
+RUN echo "/opt/liboqs-python" >> requirements_dev.txt
+RUN pip install --no-cache-dir --upgrade -r requirements_dev.txt
 
-ENV FLASK_APP=/app/qpigeon/server
+# copy source code
+COPY qpigeon qpigeon
+COPY tests tests
 
-CMD ["python", "-m", "flask", "run", "--host=0.0.0.0"]
+CMD ["python", "-m", "pytest"]

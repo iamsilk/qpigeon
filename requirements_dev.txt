@@ -1,0 +1,12 @@
+requests
+requests-mock-flask
+requests_mock
+
+flask
+flask_sqlalchemy
+Flask-Session
+python-memcached
+psycopg2
+pytest
+
+pycryptodome

@@ -1,5 +1,5 @@
 import requests
-from tests.helpers import generate_keypair, sign_challenge
+from tests.helpers import generate_keypair, sign_data
 import secrets
 import base64
 import json
@@ -53,7 +53,7 @@ def verify_user(_url, _json_data):
     _challenge = _response.json()['challenge']
 
     # Verifying the signature
-    _signed_challenge = sign_challenge(sig_alg, sig_key_secret, base64.b64decode(_challenge))
+    _signed_challenge = sign_data(sig_alg, sig_key_secret, base64.b64decode(_challenge))
 
     _data = {'challenge_signed': base64.b64encode(_signed_challenge).decode()}
     _json_data = json.dumps(_data)

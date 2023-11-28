@@ -25,22 +25,28 @@ This project is a work-in-progress. Core functionality is still being implemente
 ## Setup
 
 ```sh
-pip install -r ./qpigeon/server/requirements_dev.txt
-pip install -r ./qpigeon/server/requirements.txt
+python -m pip install -r ./qpigeon/server/requirements_dev.txt
 ```
 
 ## Debugging
 
 ```sh
-flask --app ./qpigeon/server/run.py run
+docker compose up
 ```
 
 ## Testing
 
+### On Host
 ```sh
 pytest
 # or, to run a specific test case (for example, test_register)
 pytest -k test_register
 # optionally, add the '-s' option to be able to see print statements
 pytest -k test_register -s
+```
+
+### In Docker
+```sh
+docker build -t qpigeon-tests -f Dockerfile.tests .
+docker run -it qpigeon-tests
 ```

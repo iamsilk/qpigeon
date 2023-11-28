@@ -1,13 +1,23 @@
-from flask import Blueprint, request, session, jsonify
-from .models import db, User, Contact, ContactRequest, UserNonces
-from .auth import auth_required, user_required
-import time
+from flask import Blueprint, current_app, request, session, jsonify
+from .models import db, User, Contact
+from .auth import data_verification_required
 import secrets
 import base64
 import oqs
-from .config import Config
 
 api = Blueprint('api', __name__)
+
+
+@api.route('/server/key', methods=['GET'])
+def server_key():
+    return jsonify({
+        'sig_alg': current_app.config['SERVER_SIG_ALG'],
+        'sig_public_key': current_app.config['SERVER_SIG_PUBLIC_KEY'],
+        'kem_alg': current_app.config['SERVER_KEM_ALG'],
+        'kem_public_key': current_app.config['SERVER_KEM_PUBLIC_KEY'],
+        'kem_signature': current_app.config['SERVER_KEM_SIGNATURE']
+    }), 200
+
 
 @api.route('/register/challenge', methods=['POST'])
 def register_challenge():
@@ -116,6 +126,8 @@ def register_submit():
             return jsonify({"message": "Username already taken"}), 400
         return jsonify({"message": "Error creating user"}), 400
 
+
+
 @api.route('/login/challenge', methods=['POST'])
 def login_challenge():
     data = request.get_json()
@@ -187,199 +199,133 @@ def login_submit():
 
     return jsonify({"message": "Login successful"}), 200
 
-@api.route('/contact/request/send', methods=['POST'])
-@auth_required
-@user_required
-def contact_request_send(user):
-    data = request.get_json()
-
-    ## Input validation
-
-    username = data.get('username')
-
-    timestamp = data.get('timestamp')
-    nonce = data.get('nonce')  # check the nonce
-
-    # Check the timestamp is valid
-    if time.time() - timestamp > Config.TIME_THRESHOLD:
-        return jsonify({"message": "Timeout"}), 400
-
-    # Check if username is present
-    if not username or not isinstance(username, str):
-        return jsonify({"message": "Username required"}), 400
-    
+@api.route('/contact/add', methods=['POST'])
+@data_verification_required([
+    ('username', str)
+])
+def contact_add(user, signature, timestamp, nonce, action, username):
     # Check if user exists
-    requestee = User.query.filter_by(username=username).first()
-    if not requestee:
+    other_user = User.query.filter_by(username=username).first()
+    if not other_user:
         return jsonify({"message": "User not found"}), 400
-
-    # Verify the nonce
-    if nonce in UserNonces.query.filter_by(user_id=requestee.id).all():
-        return jsonify({"message": "Nonce already exists"}), 400
-
-    contact_nonce = UserNonces(user_id=requestee.id, nonce=base64.b64decode(nonce))
-    db.session.add(contact_nonce)
-
-    # Check if contact already exists
-    if requestee in user.contacts:
-        return jsonify({"message": "Contact already exists"}), 400
-
-
-    # Check if contact request already exists
-    existing_contact_request = ContactRequest.query.filter_by(requester=user, requestee=requestee).first()
-    if existing_contact_request:
-        # Spoof if the request was previously denied. Sender should
-        # not be able to tell the difference between a request that
-        # was denied and a request that was ignored.
-        # TODO: Delay response to prevent timing attacks
-        return jsonify({"message": "Contact request sent"}), 200
     
-    # Create contact request
-    contact_request = ContactRequest(requester=user, requestee=requestee)
-    db.session.add(contact_request)
+    outgoing_contact = Contact.query.filter_by(user=user, contact=other_user).first()
+    incoming_contact = Contact.query.filter_by(user=other_user, contact=user).first()
 
+    # Check if contact already established
+    if outgoing_contact and incoming_contact:
+        return jsonify({"message": "Contact already established"}), 400
+    
+    signed_request = {
+        'signature': base64.b64encode(signature).decode(),
+        'timestamp': timestamp,
+        'nonce': base64.b64encode(nonce).decode(),
+        'action': action,
+        'username': username
+    }
+    
     try:
+        # If no contact request exists at all, create a new one
+        if not outgoing_contact and not incoming_contact:
+            contact_request = Contact(user=user, contact=other_user, signed_request=signed_request)
+            db.session.add(contact_request)
+            db.session.commit()
+            
+            return jsonify({"message": "Contact request sent"}), 200
+        
+        # If outgoing contact request exists, update it
+        if outgoing_contact:
+            outgoing_contact.signed_request = signed_request
+            db.session.commit()
+            
+            return jsonify({"message": "Contact request sent"}), 200
+        
+        # Only option left:
+        # If incoming contact request exists, accept it
+        incoming_contact.signed_accept = signed_request
+        outgoing_contact = Contact(
+            user=user,
+            contact=other_user,
+            signed_request=signed_request,
+            signed_accept=incoming_contact.signed_request
+        )
+        db.session.add(outgoing_contact)
         db.session.commit()
-        return jsonify({"message": "Contact request sent"}), 200
-    except Exception:
-        db.session.rollback()
-        return jsonify({"message": "Error creating contact request"}), 400
-
-@api.route('/contact/request', methods=['GET'])
-@auth_required
-@user_required
-def contact_request_list(user):
-    return jsonify({
-        'requests': [{
-            'username': request.requester.username,
-            'sig_alg': request.requester.sig_alg,
-            'sig_key': base64.b64encode(request.requester.sig_key).decode()
-        } for request in user.incoming_contact_requests]
-    }), 200
-
-@api.route('/contact/request', methods=['POST'])
-@auth_required
-@user_required
-def contact_request_accept(user):
-    data = request.get_json()
-
-    ## Input validation
-    username = data.get('username')
-
-    # Check if username is present
-    if not username or not isinstance(username, str):
-        return jsonify({"message": "Username required"}), 400
-    
-    # Get user
-    requester = User.query.filter_by(username=username).first()
-    if not requester:
-        # TODO: Avoid timing attacks
-        return jsonify({"message": "Contact request not found"}), 400
-    
-    # Check if contact request exists
-    contact_request = ContactRequest.query.filter_by(requester=requester, requestee=user).first()
-
-    if not contact_request:
-        return jsonify({"message": "Contact request not found"}), 400
-    
-    # Create contact
-    contact = Contact(user=user, contact=requester)
-    contact_reverse = Contact(user=requester, contact=user)
-    db.session.add(contact)
-    db.session.add(contact_reverse)
-
-    # Delete contact request
-    db.session.delete(contact_request)
-
-    try:
-        db.session.commit()
+        
         return jsonify({"message": "Contact request accepted"}), 200
     except Exception:
         db.session.rollback()
-        return jsonify({"message": "Error accepting contact request"}), 400
+        return jsonify({"message": "Error sending contact request"}), 400
 
-@api.route('/contact/request', methods=['DELETE'])
-@auth_required
-@user_required
-def contact_request_reject(user):
-    data = request.get_json()
 
-    ## Input validation
-    username = data.get('username')
-
-    # Check if username is present
-    if not username or not isinstance(username, str):
-        return jsonify({"message": "Username required"}), 400
-    
+@api.route('/contact/remove', methods=['POST'])
+@data_verification_required([
+    ('username', str)
+])
+def contact_remove(user, signature, timestamp, nonce, action, username):
     # Get user
-    requester = User.query.filter_by(username=username).first()
-    if not requester:
+    other_user = User.query.filter_by(username=username).first()
+    if not other_user:
         # TODO: Avoid timing attacks
         return jsonify({"message": "Contact request not found"}), 400
     
-    # Check if contact request exists
-    contact_request = ContactRequest.query.filter_by(requester=requester, requestee=user).first()
-
-    if not contact_request:
-        return jsonify({"message": "Contact request not found"}), 400
+    # Check if contact request exists    
+    outgoing_contact = Contact.query.filter_by(user=user, contact=other_user).first()
+    incoming_contact = Contact.query.filter_by(user=other_user, contact=user).first()
     
-    # Delete contact request
-    db.session.delete(contact_request)
-
+    # If no contacts exist either way, say the request was revoked
+    if not outgoing_contact and not incoming_contact:
+        # Tell the user that the contact request was cancelled, even if it didn't exist
+        # This avoids the user being able to tell if their request was rejected or ignored
+        # TODO: Avoid timing attacks
+        return jsonify({"message": "Contact request cancelled"}), 200
+    
     try:
+        # If only outgoing contact exists, cancel the request
+        if outgoing_contact and not incoming_contact:
+            db.session.delete(outgoing_contact)
+            db.session.commit()
+            
+            return jsonify({"message": "Contact request cancelled"}), 200
+        
+        # If only incoming contact exists, reject the request
+        if incoming_contact and not outgoing_contact:
+            db.session.delete(incoming_contact)
+            db.session.commit()
+            
+            return jsonify({"message": "Contact request rejected"}), 200
+        
+        # Last option:
+        # If both contacts exist, remove them
+        db.session.delete(outgoing_contact)
+        db.session.delete(incoming_contact)
         db.session.commit()
-        return jsonify({"message": "Contact request rejected"}), 200
+        
+        return jsonify({"message": "Contact removed"}), 200
     except Exception:
         db.session.rollback()
         return jsonify({"message": "Error rejecting contact request"}), 400
 
-@api.route('/contact', methods=['GET'])
-@auth_required
-@user_required
-def contact_list(user):
+@api.route('/contact/requests', methods=['GET'])
+@data_verification_required()
+def contact_request_list(user, signature, timestamp, nonce, action):
+    return jsonify({
+        'requests': [{
+            'username': request.user.username,
+            'sig_alg': request.user.sig_alg,
+            'sig_key': base64.b64encode(request.user.sig_key).decode(),
+            'signed_request': request.signed_request
+        } for request in user.contact_requests if request.signed_accept is None]
+    }), 200
+
+@api.route('/contact/list', methods=['GET'])
+@data_verification_required()
+def contact_list(user, signature, timestamp, nonce, action):
     return jsonify({
         'contacts': [{
             'username': contact.contact.username,
             'sig_alg': contact.contact.sig_alg,
-            'sig_key': base64.b64encode(contact.contact.sig_key).decode()
-        } for contact in user.contacts]
+            'sig_key': base64.b64encode(contact.contact.sig_key).decode(),
+            'signed_accept': contact.signed_accept
+        } for contact in user.contacts if contact.signed_accept is not None]
     }), 200
-
-@api.route('/contact', methods=['DELETE'])
-@auth_required
-@user_required
-def contact_remove(user):
-    data = request.get_json()
-
-    ## Input validation
-
-    username = data.get('username')
-
-    # Check if username is present
-    if not username or not isinstance(username, str):
-        return jsonify({"message": "Username required"}), 400
-    
-    # Get user
-    contact_user = User.query.filter_by(username=username).first()
-    if not contact_user:
-        # TODO: Avoid timing attacks
-        return jsonify({"message": "Contact not found"}), 400
-    
-    # Check if contact exists
-    contact = Contact.query.filter_by(user=user, contact=contact_user).first()
-    contact_reverse = Contact.query.filter_by(user=contact_user, contact=user).first()
-    if not contact and not contact_reverse:
-        return jsonify({"message": "Contact not found"}), 400
-    
-    # Delete contact
-    if contact:
-        db.session.delete(contact)
-    if contact_reverse:
-        db.session.delete(contact_reverse)
-
-    try:
-        db.session.commit()
-        return jsonify({"message": "Contact removed"}), 200
-    except Exception:
-        db.session.rollback()
-        return jsonify({"message": "Error removing contact"}), 400
