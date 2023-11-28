@@ -25,6 +25,7 @@ WORKDIR /app
 
 # copy source code
 COPY qpigeon/server ./qpigeon/server
+COPY qpigeon/shared ./qpigeon/shared
 
 # install requirements
 RUN echo "/opt/liboqs-python" >> qpigeon/server/requirements.txt

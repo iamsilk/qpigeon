@@ -1,8 +1,8 @@
 from flask import Flask
 from flask_session import Session
-from .models import db
-from .routes import api
-from .config import Config
+from qpigeon.server.models import db
+from qpigeon.server.routes import api
+from qpigeon.server.config import Config
 import secrets
 import os
 

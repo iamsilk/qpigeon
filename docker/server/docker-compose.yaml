@@ -1,14 +1,14 @@
-# Create a copy of this file in the parent directory to use it.
-
 services:
   flask:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ../../
+      dockerfile: docker/server/Dockerfile
     ports:
       - 5000:5000
     environment:
       - DATABASE_URL=postgresql://qpigeon:password@postgres:5432/qpigeon
+    networks:
+      - qpigeon
     volumes:
       - ./instance/flask:/app/instance:rw
     depends_on:
@@ -22,6 +22,8 @@ services:
       POSTGRES_USER: qpigeon
       POSTGRES_PASSWORD: password
       POSTGRES_DB: qpigeon
+    networks:
+      - qpigeon
     ports:
       - 5432:5432
     volumes:
@@ -35,5 +37,11 @@ services:
   adminer:
     image: adminer
     restart: always
+    networks:
+      - qpigeon
     ports:
       - 8080:8080
+
+networks:
+  qpigeon:
+    external: true

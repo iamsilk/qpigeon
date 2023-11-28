@@ -6,47 +6,38 @@ An end-to-end encryption message application. Uses quantum-safe cryptography.
 
 This project is a work-in-progress. Core functionality is still being implemented.
 
-### Server
-
-- [x] Registering accounts.
-- [x] Login to accounts.
-- [ ] Change signature of account.
-- [x] Add and remove contacts.
-- [ ] Send and receive messages.
-
-### Console Client
-
-- [ ] Registering accounts.
-- [ ] Login to accounts.
-- [ ] Change signature of account.
-- [ ] Add and remove contacts.
-- [ ] Send and receive messages.
-
 ## Setup
 
+Install the requirements.
+
 ```sh
-python -m pip install -r ./qpigeon/server/requirements_dev.txt
+python -m pip install -r requirements_dev.txt
 ```
 
-## Debugging
+And also create the qpigeon docker network (this allows the client and server to talk to each other).
 
 ```sh
-docker compose up
+docker network create qpigeon
 ```
 
 ## Testing
 
-### On Host
 ```sh
-pytest
-# or, to run a specific test case (for example, test_register)
-pytest -k test_register
-# optionally, add the '-s' option to be able to see print statements
-pytest -k test_register -s
+docker build -t qpigeon-tests -f docker/tests/Dockerfile .
+docker run -it qpigeon-tests
 ```
 
-### In Docker
+## Debugging
+
+### Server
+
 ```sh
-docker build -t qpigeon-tests -f Dockerfile.tests .
-docker run -it qpigeon-tests
+docker compose -f docker/server/docker-compose.yaml up --build
+```
+
+### Client
+
+```sh
+docker compose -f docker/client/docker-compose.yaml build
+docker compose -f docker/client/docker-compose.yaml run --rm client
 ```

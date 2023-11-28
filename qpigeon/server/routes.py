@@ -1,6 +1,6 @@
 from flask import Blueprint, current_app, request, session, jsonify
-from .models import db, User, Contact, Message
-from .auth import data_verification_required
+from qpigeon.server.models import db, User, Contact, Message
+from qpigeon.server.auth import data_verification_required
 import secrets
 import base64
 import oqs
@@ -282,6 +282,9 @@ def contact_add(user, signature, timestamp, nonce, action, username):
     if not other_user:
         return jsonify({"message": "User not found"}), 400
     
+    if user == other_user:
+        return jsonify({"message": "Cannot add self as contact"}), 400
+    
     outgoing_contact = Contact.query.filter_by(user=user, contact=other_user).first()
     incoming_contact = Contact.query.filter_by(user=other_user, contact=user).first()
 
@@ -341,6 +344,9 @@ def contact_remove(user, signature, timestamp, nonce, action, username):
     if not other_user:
         # TODO: Avoid timing attacks
         return jsonify({"message": "Contact request not found"}), 400
+    
+    if user == other_user:
+        return jsonify({"message": "Cannot remove self as contact"}), 400
     
     # Check if contact request exists    
     outgoing_contact = Contact.query.filter_by(user=user, contact=other_user).first()

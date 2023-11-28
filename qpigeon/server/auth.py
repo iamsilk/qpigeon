@@ -1,11 +1,9 @@
 from functools import wraps
 from flask import current_app, request, jsonify, session
-from .models import User
 import base64
 import datetime
 from qpigeon.shared.crypto import verify_signature, decrypt_data
-from qpigeon.server import db
-from qpigeon.server.models import UserNonces
+from qpigeon.server.models import db, User, UserNonces
 
 
 def auth_required(f):

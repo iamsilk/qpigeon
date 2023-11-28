@@ -30,6 +30,7 @@ class Client():
         self.session = requests.Session()
         
         self.username = None
+        self.logged_in = False
         
         self.sig_alg = None
         self.sig_secret_key = None
@@ -50,6 +51,9 @@ class Client():
             'new_signature': [],
             'new_kem': []
         }
+        
+    def load_username(self, username):
+        self.username = username
 
     def load_sig_key(self, sig_alg, sig_secret_key, sig_public_key):
         self.sig_alg = sig_alg
@@ -92,6 +96,9 @@ class Client():
 
     def register_new_signature_callback(self, callback):
         self.callbacks['new_signature'].append(callback)
+        
+    def register_new_kem_callback(self, callback):
+        self.callbacks['new_kem'].append(callback)
 
     def load_known_signatures(self, known_signatures):
         self.known_signatures = known_signatures
@@ -225,6 +232,8 @@ class Client():
         })
 
         _raise_if_bad(response)
+        
+        self.username = username
 
         return response.status_code == 201
 
@@ -260,6 +269,7 @@ class Client():
             return False
         
         self.username = username
+        self.logged_in = True
 
         return True
     
@@ -270,7 +280,7 @@ class Client():
         return signature, timestamp, nonce
 
     def get_contacts(self):
-        if not self.username:
+        if not self.logged_in:
             raise ClientError("Not logged in.")
         
         action = '/api/contact/list'
@@ -294,7 +304,7 @@ class Client():
         return contacts
 
     def get_contact_requests(self):
-        if not self.username:
+        if not self.logged_in:
             raise ClientError("Not logged in.")
         
         action = '/api/contact/requests'
@@ -314,7 +324,7 @@ class Client():
         return requests
 
     def add_contact(self, username):
-        if not self.username:
+        if not self.logged_in:
             raise ClientError("Not logged in.")
         
         action = '/api/contact/add'
@@ -336,7 +346,7 @@ class Client():
         return response.json()['message']
 
     def remove_contact(self, username):
-        if not self.username:
+        if not self.logged_in:
             raise ClientError("Not logged in.")
         
         action = '/api/contact/remove'
@@ -358,7 +368,7 @@ class Client():
         return response.json()['message']
 
     def send_message(self, username, message):
-        if not self.username:
+        if not self.logged_in:
             raise ClientError("Not logged in.")
         
         known_kem = self.known_kems[username]
@@ -396,7 +406,7 @@ class Client():
         return response.json()['message']
     
     def get_messages(self, username):
-        if not self.username:
+        if not self.logged_in:
             raise ClientError("Not logged in.")
         
         action = '/api/message/list'

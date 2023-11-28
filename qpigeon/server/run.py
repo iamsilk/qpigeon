@@ -1,4 +1,4 @@
-from . import create_app
+from qpigeon.server import create_app
 
 # Run app
 if __name__ == '__main__':

@@ -1,264 +1,311 @@
-import requests
-from tests.helpers import generate_sig_keypair, sign_data
-import secrets
+import argparse
 import base64
-import json
 import os
-import time
+import json
 
-ss_key_file = os.path.join(os.getcwd(), ".dl2", "ss.dl2")
-ps_key_file = os.path.join(os.getcwd(), ".dl2", "ps.dl2")
-nonces_file = os.path.join(os.getcwd(), "nonces.json")
-contacts_file = os.path.join(os.getcwd(), "contacts.json")
+from client import Client, ClientError
 
-# Dilitihum2 - for now
-sig_alg = 'Dilithium2'
+class ConsoleClient():
+    def __init__(self, endpoint, profile_dir):
+        self.client = Client(endpoint)
+        
+        self.client.register_new_signature_callback(self.new_signature_callback)
+        
+        self.profile_dir = os.path.abspath(os.path.expanduser(profile_dir))
+        self._profile_user_path = os.path.join(self.profile_dir, 'user.json')
+        self._profile_contacts_path = os.path.join(self.profile_dir, 'contacts.json')
+        self._profile_messages_path = os.path.join(self.profile_dir, 'messages.json')
+        
+        self.profile_user = {
+            'username': None,
+            'sig_key': None,
+            'kem_key': None
+        }
+        
+    def run(self):
+        print('Welcome to qpigeon!')
+        print(f'[ Endpoint: {self.client.endpoint}, Profile directory: {self.profile_dir} ]')
+        
+        self.load_profile()
+        
+        print('Type "help" for a list of commands')
+        
+        self.command_loop()
+        
+        self.save_profile()
+        
+        print('Goodbye!')
+    
+    def load_profile(self):
+        print('Loading profile...')
+        self.load_profile_user()
+        self.load_profile_contacts()
+        self.load_profile_messages()
+        
+    def load_profile_user(self):
+        try:
+            with open(self._profile_user_path, 'r') as f:
+                self.profile_user = json.load(f)
+                
+                username = self.profile_user['username']
+                if username:
+                    self.client.load_username(username)
+                    print(f'- Username: {username}')
+                else:
+                    print(f'- Username: <not set>')
+                
+                sig_key = self.profile_user['sig_key']
+                if sig_key:
+                    sig_alg = sig_key['sig_alg']
+                    sig_secret_key = sig_key['sig_secret_key']
+                    sig_public_key = sig_key['sig_public_key']
+                    self.client.load_sig_key(
+                        sig_alg,
+                        base64.b64decode(sig_secret_key),
+                        base64.b64decode(sig_public_key)
+                    )
+                    print(f'- Signature: {sig_alg} key loaded.')
+                else:
+                    print(f'- Signature: <not set>')
+                
+                kem_key = self.profile_user['kem_key']
+                if kem_key:
+                    kem_alg = kem_key['kem_alg']
+                    kem_secret_key = kem_key['kem_secret_key']
+                    kem_public_key = kem_key['kem_public_key']
+                    kem_signature = kem_key['kem_signature']
+                    self.client.load_kem_key(
+                        kem_alg,
+                        base64.b64decode(kem_secret_key),
+                        base64.b64decode(kem_public_key),
+                        base64.b64decode(kem_signature)
+                    )
+                    print(f'- KEM: {kem_alg} key loaded.')
+                else:
+                    print(f'- KEM: <not set>')
+        except FileNotFoundError:
+            print(f'- Username: <not set>')
+            print(f'- Signature: <not set>')
+            print(f'- KEM: <not set>')
+        except json.JSONDecodeError:
+            print(f'Error: {self._profile_user_path} is corrupted')
+    
+    def load_profile_contacts(self):
+        try:
+            with open(self._profile_contacts_path, 'r') as f:
+                contacts = json.load(f)
+                known_signatures = contacts['known_signatures']
+                known_kems = contacts['known_kems']
+                self.client.load_known_signatures(known_signatures)
+                self.client.load_known_kems(known_kems)
+                print(f'- Known signatures loaded ({len(known_signatures)}).')
+                print(f'- Known KEMs loaded ({len(known_signatures)}).')
+        except FileNotFoundError:
+            print('- No known signatures loaded.')
+            print('- No known KEMs loaded.')
+        except json.JSONDecodeError:
+            print(f'Error: {self._profile_contacts_path} is corrupted')
+    
+    def load_profile_messages(self):
+        try:
+            with open(self._profile_messages_path, 'r') as f:
+                messages = json.load(f)
+                self.client.load_messages(messages)
+                print(f'- Messages loaded ({len(messages)}).')
+        except FileNotFoundError:
+            print('- No messages loaded.')
+        except json.JSONDecodeError:
+            print(f'Error: {self._profile_messages_path} is corrupted')
+    
+    def save_profile(self):
+        self.save_profile_user()
+        self.save_profile_contacts()
+        self.save_profile_messages()
+    
+    def save_profile_user(self):
+        self.profile_user = {
+            'username': self.client.username
+        }
+        
+        if self.client.sig_alg:
+            self.profile_user['sig_key'] = {
+                'sig_alg': self.client.sig_alg,
+                'sig_secret_key': base64.b64encode(self.client.sig_secret_key).decode(),
+                'sig_public_key': base64.b64encode(self.client.sig_public_key).decode()
+            }
+            
+        if self.client.kem_alg:
+            self.profile_user['kem_key'] = {
+                'kem_alg': self.client.kem_alg,
+                'kem_secret_key': base64.b64encode(self.client.kem_secret_key).decode(),
+                'kem_public_key': base64.b64encode(self.client.kem_public_key).decode(),
+                'kem_signature': base64.b64encode(self.client.kem_signature).decode()
+            }
+        
+        with open(self._profile_user_path, 'w') as f:
+            json.dump(self.profile_user, f, indent=4)
+    
+    def save_profile_contacts(self):
+        with open(self._profile_contacts_path, 'w') as f:
+            json.dump({
+                'known_signatures': self.client.known_signatures,
+                'known_kems': self.client.known_kems
+            }, f, indent=4)
+    
+    def save_profile_messages(self):
+        with open(self._profile_messages_path, 'w') as f:
+            json.dump(self.client.messages, f, indent=4)
 
-# Setting signature key pair
-sig_key_public, sig_key_secret = "", ""
-user_exists = False
-
-if not os.path.exists(ss_key_file):
-    os.makedirs(os.path.join(os.getcwd(), ".dl2/"))
-    sig_key_public, sig_key_secret = generate_sig_keypair(sig_alg)
-
-    with open(ss_key_file, "wb+") as file:
-        file.write(sig_key_secret)
-
-    with open(ps_key_file, "wb+") as file:
-        file.write(sig_key_public)
-else:
-    user_exists = True
-    with open(ss_key_file, "rb+") as file:
-        sig_key_secret = file.read()
-    with open(ps_key_file, "rb+") as file:
-        sig_key_public = file.read()
-
-static_domain = 'https://keen-arguably-termite.ngrok-free.app'
-
-# Assuming the Flask server is running at http://localhost:5000
-register_url = static_domain + '/api/register/'
-login_url = static_domain + '/api/login/'
-request_send_url = static_domain + '/api/contact/request/send'
-request_url = static_domain + '/api/contact/request'
-contacts_url = static_domain + '/api/contact'
-
-session = requests.Session()
-
-
-def verify_user(_url, _json_data):
-    # Verify challenge function here?
-    _response = session.post(_url + "/challenge", data=_json_data, headers=headers)
-
-    _challenge = _response.json()['challenge']
-
-    # Verifying the signature
-    _signed_challenge = sign_data(sig_alg, sig_key_secret, base64.b64decode(_challenge))
-
-    _data = {'challenge_signed': base64.b64encode(_signed_challenge).decode()}
-    _json_data = json.dumps(_data)
-
-    # Make the POST request
-    _response = session.post(_url + "/submit", data=_json_data, headers=headers)
-
-    print(_response.json()['message'])
-
-    return _response.status_code
-
-
-def generate_nonce(_pskey):
-    if not os.path.exists(nonces_file):
-        _nonce = base64.b64encode(secrets.token_bytes(16)).decode()
-        f = open(nonces_file, "w+")
-        _json_data = [{
-            'sig_pub_key': base64.b64encode(_pskey).decode(),
-            'nonce': _nonce
-        }]
-        json.dump(_json_data, f, indent=2)
-
-        f.close()
-
-        return _nonce
-
-    else:
-        f = open(nonces_file, "r+")
-        json_str = f.read()
-        existing_nonces = json.loads(json_str)
+    def new_signature_callback(self, username, sig_alg, sig_public_key):
+        print(f'First time seeing signature for {username}. Saving to known signatures...')
+        self.save_profile_contacts()
+        
+    def new_kem_callback(self, username, kem_alg, kem_public_key):
+        print(f'First time seeing KEM for {username}. Saving to known KEMs...')
+        self.save_profile_contacts()
+    
+    def command_loop(self):
         while True:
-            _nonce = base64.b64encode(secrets.token_bytes(16)).decode()
-            nonce_found = False
-            for pair in existing_nonces:
-                if pair['sig_pub_key'] == base64.b64encode(_pskey).decode():
-                    if pair['nonce'] == _nonce and not nonce_found:
-                        nonce_found = True
-
-            if not nonce_found:
+            try:
+                command = input('qpigeon> ').lower()
+                if command == 'help':
+                    print("Available commands:")
+                    print(" General:")
+                    print("  help      - show this help")
+                    print("  quit      - quit the client")
+                    print(" Authentication:")
+                    print("  login     - login as the current profile's user")
+                    print("  register  - register as new user (WARNING: this may overwrite your existing profile)")
+                    print(" Contacts:")
+                    print("  add       - add a new contact or accept a contact request")
+                    print("  remove    - remove a contact or reject a contact request")
+                    print("  contacts  - list contacts")
+                    print("  requests  - list contact requests")
+                    print(" Messaging:")
+                    print("  send      - send a message to a contact")
+                    print("  messages  - view messages from a contact")
+                    continue
+                
+                if command == 'quit':
+                    break
+                
+                if command == 'login':
+                    self.login()
+                    continue
+                
+                if command == 'register':
+                    self.register()
+                    continue
+                
+                if command == 'add':
+                    self.add_contact()
+                    continue
+                
+                if command == 'remove':
+                    self.remove_contact()
+                    continue
+                
+                if command == 'contacts':
+                    self.list_contacts()
+                    continue
+                
+                if command == 'requests':
+                    self.list_requests()
+                    continue
+                
+                if command == 'send':
+                    self.send_message()
+                    continue
+                
+                if command == 'messages':
+                    self.list_messages()
+                    continue
+                
+                print(f'Unknown command: {command}')
+            except ClientError as e:
+                print(f'Error: {e}')
+            except KeyboardInterrupt:
                 break
+            
+    def login(self):
+        username = self.client.username or input('Username> ')
+        print('Logging in...')
+        if self.client.login(username):
+            print('Login successful!')
+        else:
+            print('Login failed!')
+    
+    def register(self):
+        username = input('Username> ')
+        
+        # TODO: Make this configurable
+        sig_alg = 'Dilithium2'
+        kem_alg = 'Kyber512'
+        
+        print('Generating signature key...')
+        self.client.gen_sig_key(sig_alg)
+        
+        print('Generating KEM key...')
+        self.client.gen_kem_key(kem_alg)
+        
+        print(f'Registering account {username}...')
+        
+        if self.client.register(username):
+            self.save_profile_user()            
+            print('Registration successful! You may now login.')
+        else:
+            print('Registration failed!')
+    
+    def add_contact(self):
+        username = input('Contact Username> ')
+        result = self.client.add_contact(username)
+        if result:
+            print(result)
+    
+    def remove_contact(self):
+        username = input('Contact Username> ')
+        result = self.client.remove_contact(username)
+        if result:
+            print(result)
+    
+    def list_contacts(self):
+        contacts = self.client.get_contacts()
+        print(f'Contacts ({len(contacts)}):')
+        for contact in contacts:
+            print(f'- Username: {contact['username']}')
+    
+    def list_requests(self):
+        requests = self.client.get_contact_requests()
+        print(f'Contact requests ({len(requests)}):')
+        for request in requests:
+            print(f'- Username: {request['username']}')
+    
+    def send_message(self):
+        username = input('Contact Username> ')
+        message = input('Message> ')
+        result = self.client.send_message(username, message)
+        if result:
+            print(result)
+    
+    def list_messages(self):
+        username = input('Contact Username> ')
+        messages = self.client.get_messages(username)
+        if not messages:
+            print(f'Unable to get messages for {username}')
+            return
+        
+        print(f'Conversation with {username} ({len(messages)}):')
+        for message in messages:
+            print(f'- {message['username']}:')
+            print(f'  {message['message']}')
+            
+    
 
-        existing_nonces.append({'sig_pub_key': base64.b64encode(_pskey).decode(), 'nonce': _nonce})
-        f.seek(0)
-        json.dump(existing_nonces, f, indent=2)
-
-        f.close()
-
-        return _nonce
-
-
-def generate_contact(_contact_request):
-    if not os.path.exists(contacts_file):
-        f = open(contacts_file, "w+")
-        _json_data = [{
-            'sender_key': _contact_request['sig_key'],
-            'receiver_key': base64.b64encode(sig_key_public).decode()
-        }]
-        json.dump(_json_data, f, indent=2)
-
-        f.close()
-
-        return True
-
-    else:
-        f = open(contacts_file, "r+")
-        json_str = f.read()
-        existing_contacts = json.loads(json_str)
-        _contact_key = _contact_request['sig_key']
-        contact_found = False
-        for pair in existing_contacts:
-            if pair['sender_key'] == _contact_key:
-                if pair['receiver_key'] == base64.b64encode(sig_key_public).decode() and not contact_found:
-                    contact_found = True
-
-        if not contact_found:
-            existing_contacts.append({'sender_key': base64.b64encode(sig_key_public).decode(),
-                                      'receiver_key': _contact_key})
-            f.seek(0)
-            json.dump(existing_contacts, f, indent=2)
-
-            f.close()
-
-            return True
-
-        return False
-
-
-# -- Need to get public key first through requests
-def add_contact(_contact_request):
-    if generate_contact(_contact_request):
-        add_contact_data = json.dumps({'username': _contact_request['username']})
-        add_contact_response = session.post(request_url, data=add_contact_data, headers=headers)
-        print(add_contact_response.json()['message'])
-    else:
-        print('Contact already exists')
-        delete_request_data = json.dumps({'username': _contact_request['username']})
-        delete_request_response = session.delete(request_url, data=delete_request_data, headers=headers)
-        print(delete_request_response.json()['message'])
-
-
-def send_request(_username):
-    new_nonce = generate_nonce(sig_key_public)
-    # TODO: Send nonce here as well - and timestamp
-    time_stamp = time.time()
-    request_send_data = json.dumps({'username': _username, 'timestamp': time_stamp, 'nonce': new_nonce})
-    request_send_response = session.post(request_send_url, data=request_send_data, headers=headers)
-    print(request_send_response.json()['message'])
-
-
-def receive_requests():
-    request_receive_response = session.get(request_url, headers=headers)
-    return request_receive_response.json()['requests']
-
-
-def receive_contacts():
-    contact_receive_response = session.get(contacts_url, headers=headers)
-    return contact_receive_response.json()['contacts']
-
-
-def send_message(_username):
-    print("Message sent")
-
-
-# Get input from the user
-
-print('Welcome to qpigeon!')
-print('A secret key will be needed for communication and will be stored in the enclosing folder')
-print('Please enter a command: ')
-print('[Register (r), Login (l), Exit (x)]')
-
-cmd = input().lower()
-
-while cmd != 'x':
-    while (cmd != 'r' and cmd != 'l') or cmd == ' ':
-        print('Enter a valid command')
-        cmd = input().lower()
-
-    username = input('Enter username: ')
-
-    # Data to be sent in the POST request
-    data = {'username': username, 'sig_alg': sig_alg}
-
-    # Convert the data to JSON format
-    json_data = json.dumps(data)
-
-    # Set the headers for the request
-    headers = {'Content-Type': 'application/json'}
-
-    response = ""
-
-    if cmd == 'r' and not user_exists:
-        data['sig_key'] = base64.b64encode(sig_key_public).decode()
-        json_data = json.dumps(data)
-
-        verify_user(register_url, json_data)
-
-    elif cmd == 'r':
-        # TODO: Make it so that there are different keys stored with different users
-        print('Public key already exists')
-
-    elif cmd == 'l':
-        code = verify_user(login_url, json_data)
-        if code == 200:
-            print('\nEnter a command: ')
-            print('[(s)end contact request, (r)eceive requests, view (c)ontacts' +
-                  ', (v)iew messages, send (m)essage, e(x)it')
-            cmd = input().lower()
-            while cmd != 'x':
-                while ((cmd != 's' and cmd != 'r' and cmd != 'v' and cmd != 'm' and cmd != 'c')
-                       or cmd == ' ' or cmd == '\n'):
-                    print('Enter a valid command')
-                    cmd = input().lower()
-
-                if cmd == 's':
-                    sendto = input('Send request to: ')
-                    send_request(sendto)
-
-                elif cmd == 'r':
-                    pending_requests = receive_requests()
-                    for r in range(0, len(pending_requests)):
-                        print('{}: username = {}'.format(r, pending_requests[r]['username']))
-
-                    if len(pending_requests) > 0:
-                        index = int(input('Enter a request to accept: '))
-
-                        add_contact(pending_requests[index])
-
-                elif cmd == 'c':
-                    contacts = receive_contacts()
-
-                    for r in range(0, len(contacts)):
-                        print('{}: username = {}'.format(r, contacts[r]['username']))
-
-                elif cmd == 'm':
-                    sendto = input('Send message to: ')
-                    send_message(sendto)
-
-                print('\nEnter a command: ')
-                print('[(s)end contact request, (r)eceive requests, (v)iew messages, view (c)ontacts' +
-                      'send (m)essage, e(x)it')
-                cmd = input().lower()
-
-            exit(0)
-
-    print('\nPlease enter a command: ')
-    print('[Register (r), Login (l), Exit (x)]')
-
-    cmd = input().lower()
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Qpigeon client')
+    parser.add_argument('-e', '--endpoint', dest='endpoint', default='http://localhost:5000', help='qpigeon server endpoint')
+    parser.add_argument('-p', '--profile-dir', dest='profile_dir', default='~/.qpigeon', help='qpigeon profile directory')
+    args = parser.parse_args()
+    
+    client = ConsoleClient(args.endpoint, args.profile_dir)
+    client.run()
