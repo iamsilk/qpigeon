@@ -8,12 +8,12 @@ def test_contact_request_send(client):
 
     # Register user 1
     username_1 = 'user1'
-    sig_key_public_1, sig_key_secret_1 = helpers.generate_keypair(sig_alg)
+    sig_key_public_1, sig_key_secret_1 = helpers.generate_sig_keypair(sig_alg)
     helpers.register(client, username_1, sig_alg, sig_key_public_1, sig_key_secret_1)
 
     # Register user 2
     username_2 = 'user2'
-    sig_key_public_2, sig_key_secret_2 = helpers.generate_keypair(sig_alg)
+    sig_key_public_2, sig_key_secret_2 = helpers.generate_sig_keypair(sig_alg)
     helpers.register(client, username_2, sig_alg, sig_key_public_2, sig_key_secret_2)
     
     # Login user 1
@@ -52,12 +52,12 @@ def test_contact_request_accept(client):
 
     # Register user 1
     username_1 = 'user1'
-    sig_key_public_1, sig_key_secret_1 = helpers.generate_keypair(sig_alg)
+    sig_key_public_1, sig_key_secret_1 = helpers.generate_sig_keypair(sig_alg)
     helpers.register(client, username_1, sig_alg, sig_key_public_1, sig_key_secret_1)
 
     # Register user 2
     username_2 = 'user2'
-    sig_key_public_2, sig_key_secret_2 = helpers.generate_keypair(sig_alg)
+    sig_key_public_2, sig_key_secret_2 = helpers.generate_sig_keypair(sig_alg)
     helpers.register(client, username_2, sig_alg, sig_key_public_2, sig_key_secret_2)
     
     # Login user 1
@@ -130,12 +130,12 @@ def test_contact_request_reject(client):
 
     # Register user 1
     username_1 = 'user1'
-    sig_key_public_1, sig_key_secret_1 = helpers.generate_keypair(sig_alg)
+    sig_key_public_1, sig_key_secret_1 = helpers.generate_sig_keypair(sig_alg)
     helpers.register(client, username_1, sig_alg, sig_key_public_1, sig_key_secret_1)
 
     # Register user 2
     username_2 = 'user2'
-    sig_key_public_2, sig_key_secret_2 = helpers.generate_keypair(sig_alg)
+    sig_key_public_2, sig_key_secret_2 = helpers.generate_sig_keypair(sig_alg)
     helpers.register(client, username_2, sig_alg, sig_key_public_2, sig_key_secret_2)
     
     # Login user 1
@@ -171,12 +171,12 @@ def test_contact_remove(client):
 
     # Register user 1
     username_1 = 'user1'
-    sig_key_public_1, sig_key_secret_1 = helpers.generate_keypair(sig_alg)
+    sig_key_public_1, sig_key_secret_1 = helpers.generate_sig_keypair(sig_alg)
     helpers.register(client, username_1, sig_alg, sig_key_public_1, sig_key_secret_1)
 
     # Register user 2
     username_2 = 'user2'
-    sig_key_public_2, sig_key_secret_2 = helpers.generate_keypair(sig_alg)
+    sig_key_public_2, sig_key_secret_2 = helpers.generate_sig_keypair(sig_alg)
     helpers.register(client, username_2, sig_alg, sig_key_public_2, sig_key_secret_2)
     
     # Login user 1

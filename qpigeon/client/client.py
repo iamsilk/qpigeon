@@ -5,6 +5,7 @@ import os
 import requests
 
 from qpigeon.shared.crypto import generate_signature, verify_signature
+from qpigeon.shared.crypto import encap_key, decap_key
 from qpigeon.shared.crypto import encrypt_data, decrypt_data
 
 
@@ -27,6 +28,17 @@ class Client():
         self.endpoint = endpoint
         self.session = requests.Session()
         
+        self.username = None
+        
+        self.sig_alg = None
+        self.sig_secret_key = None
+        self.sig_public_key = None
+        
+        self.kem_alg = None
+        self.kem_secret_key = None
+        self.kem_public_key = None
+        self.kem_signature = None
+        
         self.nonces = []
         self.known_signatures = {}
         self.known_kems = {}
@@ -40,10 +52,11 @@ class Client():
         self.sig_secret_key = sig_secret_key
         self.sig_public_key = sig_public_key
         
-    def load_kem_key(self, kem_alg, kem_secret_key, kem_public_key):
+    def load_kem_key(self, kem_alg, kem_secret_key, kem_public_key, kem_signature):
         self.kem_alg = kem_alg
         self.kem_secret_key = kem_secret_key
         self.kem_public_key = kem_public_key
+        self.kem_signature = kem_signature
         
     def gen_sig_key(self, sig_alg):
         with oqs.Signature(sig_alg) as signer:
@@ -65,6 +78,8 @@ class Client():
         self.kem_secret_key = kem_secret_key
         self.kem_public_key = kem_public_key
         
+        self.kem_signature = generate_signature(self.sig_alg, self.sig_secret_key, kem_public_key)
+        
         return kem_secret_key, kem_public_key
 
     def generate_nonce(self):
@@ -78,6 +93,7 @@ class Client():
         self.known_signatures = known_signatures
     
     def add_new_signature(self, username, sig_alg, sig_public_key, overwrite=False):
+        print('add_new_signature', username)
         if overwrite:
             self.known_signatures[username] = {
                 'sig_alg': sig_alg,
@@ -122,24 +138,41 @@ class Client():
         }
 
     def register(self, username):
+        if not self.sig_alg:
+            raise ClientError("Signature algorithm not set.")
+        if not self.sig_secret_key:
+            raise ClientError("Signature secret key not set.")
+        if not self.sig_public_key:
+            raise ClientError("Signature public key not set.")
+        if not self.kem_alg:
+            raise ClientError("KEM algorithm not set.")
+        if not self.kem_secret_key:
+            raise ClientError("KEM secret key not set.")
+        if not self.kem_public_key:
+            raise ClientError("KEM public key not set.")
+        if not self.kem_signature:
+            raise ClientError("KEM signature not set.")
+        
         response = self.session.post(self.endpoint + "/api/register/challenge", json={
             'username': username,
             'sig_alg': self.sig_alg,
-            'sig_key': base64.b64encode(self.sig_public_key).decode()
+            'sig_key': base64.b64encode(self.sig_public_key).decode(),
+            'kem_alg': self.kem_alg,
+            'kem_key': base64.b64encode(self.kem_public_key).decode(),
+            'kem_signature': base64.b64encode(self.kem_signature).decode()
         })
         
         _raise_if_bad(response)
 
-        challenge = response.json()['challenge']
-        challenge_bytes = base64.b64decode(challenge)
+        sig_challenge = base64.b64decode(response.json()['sig_challenge'])
+        kem_challenge = base64.b64decode(response.json()['kem_challenge'])
 
-        with oqs.Signature(self.sig_alg, self.sig_secret_key) as signer:
-            signed_challenge_bytes = signer.sign(challenge_bytes)
+        signed_challenge = generate_signature(self.sig_alg, self.sig_secret_key, sig_challenge)
+        kem_challenge_secret = decap_key(self.kem_alg, self.kem_secret_key, kem_challenge)
         
-        signed_challenge = base64.b64encode(signed_challenge_bytes).decode()
-
         response = self.session.post(self.endpoint + "/api/register/submit", json={
-            'challenge_signed': signed_challenge
+            'challenge_signed': base64.b64encode(signed_challenge).decode(),
+            'kem_challenge_secret': base64.b64encode(kem_challenge_secret).decode()
         })
 
         _raise_if_bad(response)
@@ -147,6 +180,13 @@ class Client():
         return response.status_code == 201
 
     def login(self, username):
+        if not self.sig_alg:
+            raise ClientError("Signature algorithm not set.")
+        if not self.sig_secret_key:
+            raise ClientError("Signature secret key not set.")
+        if not self.sig_public_key:
+            raise ClientError("Signature public key not set.")
+        
         response = self.session.post(self.endpoint + "/api/login/challenge", json={
             'username': username
         })
@@ -181,6 +221,9 @@ class Client():
         return signature, timestamp, nonce
 
     def get_contacts(self):
+        if not self.username:
+            raise ClientError("Not logged in.")
+        
         action = '/api/contact/list'
         signature, timestamp, nonce = self.craft_signature(action)
         
@@ -201,6 +244,9 @@ class Client():
         return contacts
 
     def get_contact_requests(self):
+        if not self.username:
+            raise ClientError("Not logged in.")
+        
         action = '/api/contact/requests'
         signature, timestamp, nonce = self.craft_signature(action)
         
@@ -218,6 +264,9 @@ class Client():
         return requests
 
     def add_contact(self, username):
+        if not self.username:
+            raise ClientError("Not logged in.")
+        
         action = '/api/contact/add'
         signature, timestamp, nonce = self.craft_signature(action, username)
         
@@ -231,10 +280,35 @@ class Client():
         
         _raise_if_bad(response)
         
-        return response.status_code == 200
+        if response.status_code != 200:
+            return False
+        
+        return response.json()['message']
 
-    def remove_contact(username):
-        pass
+    def remove_contact(self, username):
+        if not self.username:
+            raise ClientError("Not logged in.")
+        
+        action = '/api/contact/remove'
+        signature, timestamp, nonce = self.craft_signature(action, username)
+        
+        response = self.session.post(self.endpoint + action, json={
+            'signature': base64.b64encode(signature).decode(),
+            'timestamp': timestamp,
+            'nonce': base64.b64encode(nonce).decode(),
+            'action': action,
+            'username': username,
+        })
+        
+        _raise_if_bad(response)
+        
+        if response.status_code != 200:
+            return False
+        
+        return response.json()['message']
 
-    def send_message(username, message):
+    def send_message(self, username, message):
+        if not self.username:
+            raise ClientError("Not logged in.")
+        
         pass

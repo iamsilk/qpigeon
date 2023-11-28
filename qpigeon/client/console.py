@@ -1,5 +1,5 @@
 import requests
-from tests.helpers import generate_keypair, sign_data
+from tests.helpers import generate_sig_keypair, sign_data
 import secrets
 import base64
 import json
@@ -20,7 +20,7 @@ user_exists = False
 
 if not os.path.exists(ss_key_file):
     os.makedirs(os.path.join(os.getcwd(), ".dl2/"))
-    sig_key_public, sig_key_secret = generate_keypair(sig_alg)
+    sig_key_public, sig_key_secret = generate_sig_keypair(sig_alg)
 
     with open(ss_key_file, "wb+") as file:
         file.write(sig_key_secret)

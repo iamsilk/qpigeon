@@ -28,6 +28,9 @@ def register_challenge():
     username = data.get('username')
     sig_alg = data.get('sig_alg')
     sig_key = data.get('sig_key')
+    kem_alg = data.get('kem_alg')
+    kem_key = data.get('kem_key')
+    kem_signature = data.get('kem_signature')
 
     # Check if username, sig_alg, and sig_key are present
 
@@ -37,6 +40,12 @@ def register_challenge():
         return jsonify({"message": "Signature algorithm required"}), 400
     if not sig_key or not isinstance(sig_key, str):
         return jsonify({"message": "Signature key required"}), 400
+    if not kem_alg or not isinstance(kem_alg, str):
+        return jsonify({"message": "KEM algorithm required"}), 400
+    if not kem_key or not isinstance(kem_key, str):
+        return jsonify({"message": "KEM key required"}), 400
+    if not kem_signature or not isinstance(kem_signature, str):
+        return jsonify({"message": "KEM signature required"}), 400
 
     # Check if signature is base64 encoded
 
@@ -44,11 +53,30 @@ def register_challenge():
         sig_key = base64.b64decode(sig_key, validate=True)
     except Exception:
         return jsonify({"message": "Signature key must be base64 encoded"}), 400
+    
+    # Check if KEM is base64 encoded
+    
+    try:
+        kem_key = base64.b64decode(kem_key, validate=True)
+    except Exception:
+        return jsonify({"message": "KEM key must be base64 encoded"}), 400
+    
+    # Check if KEM signature is base64 encoded
+    
+    try:
+        kem_signature = base64.b64decode(kem_signature, validate=True)
+    except Exception:
+        return jsonify({"message": "KEM signature must be base64 encoded"}), 400
 
     # Check if signature algorithm is enabled
 
     if sig_alg not in oqs.get_enabled_sig_mechanisms():
         return jsonify({"message": "Signature algorithm not enabled"}), 400
+    
+    # Check if KEM algorithm is enabled
+    
+    if kem_alg not in oqs.get_enabled_kem_mechanisms():
+        return jsonify({"message": "KEM algorithm not enabled"}), 400
     
     # Check if username is length
 
@@ -60,19 +88,27 @@ def register_challenge():
 
     # Generate challenge
 
-    challenge = secrets.token_bytes(256)
+    sig_challenge = secrets.token_bytes(256)
+    
+    with oqs.KeyEncapsulation(kem_alg) as kem:
+        kem_challenge, kem_challenge_secret = kem.encap_secret(kem_key)
 
     # Save registration details to session
 
     session['register_username'] = username
     session['register_sig_alg'] = sig_alg
     session['register_sig_key'] = sig_key
-    session['register_challenge'] = challenge
+    session['register_kem_alg'] = kem_alg
+    session['register_kem_key'] = kem_key
+    session['register_kem_signature'] = kem_signature
+    session['register_sig_challenge'] = sig_challenge
+    session['register_kem_challenge_secret'] = kem_challenge_secret
 
     # Return challenge
 
     return jsonify({
-        'challenge': base64.b64encode(challenge).decode()
+        'sig_challenge': base64.b64encode(sig_challenge).decode(),
+        'kem_challenge': base64.b64encode(kem_challenge).decode(),
     }), 200
 
 @api.route('/register/submit', methods=['POST'])
@@ -84,36 +120,73 @@ def register_submit():
     username = session.pop('register_username', None)
     sig_alg = session.pop('register_sig_alg', None)
     sig_key = session.pop('register_sig_key', None)
-    challenge = session.pop('register_challenge', None)
+    kem_alg = session.pop('register_kem_alg', None)
+    kem_key = session.pop('register_kem_key', None)
+    kem_signature = session.pop('register_kem_signature', None)
+    sig_challenge = session.pop('register_sig_challenge', None)
+    kem_challenge_secret = session.pop('register_kem_challenge_secret', None)
 
     # Check if challenge was requested
 
-    if not username or not sig_alg or not sig_key or not challenge:
+    if not username or \
+        not sig_alg or not sig_key or \
+        not kem_alg or not kem_key or \
+        not kem_signature or \
+        not sig_challenge or not kem_challenge_secret:
         return jsonify({"message": "No challenge requested"}), 400
     
-    # Get signed challenge
+    ## Input validation
 
-    challenge_signed = data.get('challenge_signed')
+    sig_challenge_signed = data.get('challenge_signed')
+    kem_challenge_secret_input = data.get('kem_challenge_secret')
 
-    if not challenge_signed or not isinstance(challenge_signed, str):
+    if not sig_challenge_signed or not isinstance(sig_challenge_signed, str):
         return jsonify({"message": "Signed challenge required"}), 400
+    
+    if not kem_challenge_secret_input or not isinstance(kem_challenge_secret_input, str):
+        return jsonify({"message": "KEM challenge secret required"}), 400
     
     # Check if signed challenge is base64 encoded
 
     try:
-        challenge_signed = base64.b64decode(challenge_signed, validate=True)
+        sig_challenge_signed = base64.b64decode(sig_challenge_signed, validate=True)
     except Exception:
         return jsonify({"message": "Signed challenge must be base64 encoded"}), 400
+    
+    # Check if KEM challenge secret is base64 encoded
+    
+    try:
+        kem_challenge_secret_input = base64.b64decode(kem_challenge_secret_input, validate=True)
+    except Exception:
+        return jsonify({"message": "KEM challenge secret must be base64 encoded"}), 400
+        
+    # Verify KEM signature
+    
+    with oqs.Signature(sig_alg) as signer:
+        if not signer.verify(kem_key, kem_signature, sig_key):
+            return jsonify({"message": "Invalid KEM signature"}), 400
     
     # Verify signed challenge
 
     with oqs.Signature(sig_alg) as signer:
-        if not signer.verify(challenge, challenge_signed, sig_key):
+        if not signer.verify(sig_challenge, sig_challenge_signed, sig_key):
             return jsonify({"message": "Invalid signature"}), 400
+    
+    # Verify KEM challenge
+    
+    if kem_challenge_secret_input != kem_challenge_secret:
+        return jsonify({"message": "Invalid KEM challenge secret"}), 400
 
     # Create user
 
-    user = User(username=username, sig_alg=sig_alg, sig_key=sig_key)
+    user = User(
+        username=username,
+        sig_alg=sig_alg,
+        sig_key=sig_key,
+        kem_alg=kem_alg,
+        kem_key=kem_key,
+        kem_signature=kem_signature
+    )
     db.session.add(user)
 
     try:

@@ -7,6 +7,9 @@ class User(db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False)
     sig_alg = db.Column(db.String(80), nullable=False)
     sig_key = db.Column(db.LargeBinary, nullable=False)
+    kem_alg = db.Column(db.String(80), nullable=False)
+    kem_key = db.Column(db.LargeBinary, nullable=False)
+    kem_signature = db.Column(db.LargeBinary, nullable=False)
 
     contacts = db.relationship(
         'Contact',
