@@ -35,22 +35,29 @@ def runner(app):
     return app.test_cli_runner()
 
 @pytest.fixture()
-def remote_client(app, client):
-    from qpigeon.client.client import Client
+def remote_client_generator(app):
+    def generator():
+        from qpigeon.client.client import Client
+        
+        remote_client = Client('http://localhost.local')
+        adapter = requests_mock.Adapter()
+        remote_client.session.mount('http://', adapter)
+        
+        add_flask_app_to_mock(adapter, app, 'http://localhost.local')
+        
+        # cookies are not set by responses
+        # the issue is described here https://github.com/jamielennox/requests-mock/issues/17
+        # this is a hacky workaround
+        def no_cookie_workaround(r, *args, **kwargs):
+            remote_client.session.cookies.update(r.cookies)
+            return r
+        
+        remote_client.session.hooks['response'].append(no_cookie_workaround)
+        
+        return remote_client
     
-    remote_client = Client('http://localhost.local/api')
-    adapter = requests_mock.Adapter()
-    remote_client.session.mount('http://', adapter)
-    
-    add_flask_app_to_mock(adapter, app, 'http://localhost.local')
-    
-    # cookies are not set by responses
-    # the issue is described here https://github.com/jamielennox/requests-mock/issues/17
-    # this is a hacky workaround
-    def no_cookie_workaround(r, *args, **kwargs):
-        remote_client.session.cookies.update(r.cookies)
-        return r
-    
-    remote_client.session.hooks['response'].append(no_cookie_workaround)
-    
-    return remote_client
+    return generator
+
+@pytest.fixture()
+def remote_client(remote_client_generator):
+    return remote_client_generator()

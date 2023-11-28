@@ -5,4 +5,4 @@ import test_data
 
 def test_login_success(client):
     # Login
-    helpers.login(client, test_data.known_username, test_data.known_sig_alg, test_data.known_secret_key)
+    helpers.login(client, test_data.known_username, test_data.known_sig_alg, test_data.known_sig_secret_key)

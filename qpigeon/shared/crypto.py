@@ -58,23 +58,32 @@ def encrypt_data(kem_alg, kem_public_key, data):
     encrypted_data = aes.encrypt(data)
     return encap_key, encrypted_data
 
+def _convert_to_bytes(arg):
+    if isinstance(arg, int):
+        return arg.to_bytes((arg.bit_length() + 7) // 8, 'big')
+    elif isinstance(arg, float):
+        return struct.pack("d", arg)
+    elif isinstance(arg, bytes):
+        return arg
+    elif isinstance(arg, str):
+        return arg.encode('utf-8')
+    else:
+        raise Exception('Invalid type')
 
-def verify_signature(sig_alg, sig_key, signature, *args):
-    def convert_to_bytes(arg):
-        if isinstance(arg, int):
-            return arg.to_bytes((arg.bit_length() + 7) // 8, 'big')
-        elif isinstance(arg, float):
-            return struct.pack("d", arg)
-        elif isinstance(arg, bytes):
-            return arg
-        elif isinstance(arg, str):
-            return arg.encode('utf-8')
-        else:
-            raise Exception('Invalid type')
-    
+
+def verify_signature(sig_alg, sig_public_key, signature, *args):
     # concat args in byte form
-    data = b''.join([convert_to_bytes(arg) for arg in args])
+    data = b''.join([_convert_to_bytes(arg) for arg in args])
 
     # verify signature
     with oqs.Signature(sig_alg) as signer:
-        return signer.verify(data, signature, sig_key)
+        return signer.verify(data, signature, sig_public_key)
+    
+
+def generate_signature(sig_alg, sig_secret_key, *args):
+    # concat args in byte form
+    data = b''.join([_convert_to_bytes(arg) for arg in args])
+
+    # sign data
+    with oqs.Signature(sig_alg, sig_secret_key) as signer:
+        return signer.sign(data)
