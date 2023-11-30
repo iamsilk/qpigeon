@@ -193,6 +193,12 @@ class Client():
             'message': message,
         })
 
+    def get_sig_algorithms(self):
+        return oqs.get_enabled_sig_mechanisms()
+        
+    def get_kem_algorithms(self):
+        return oqs.get_enabled_kem_mechanisms()
+
     def register(self, username):
         if not self.sig_alg:
             raise ClientError("Signature algorithm not set.")
@@ -321,6 +327,25 @@ class Client():
         
         requests = response.json()['requests']
         
+        # record new sigs and kems
+        for request in requests:
+            self.record_new_signature(request['username'], request['sig_alg'], request['sig_key'])
+            self.record_new_kem(request['username'], request['kem_alg'], request['kem_key'], request['kem_signature'])
+        
+        # verify signatures
+        for request in requests:
+            sig_alg = request['sig_alg']
+            sig_key = base64.b64decode(request['sig_key'])
+            
+            signature = base64.b64decode(request['signed_request']['signature'])
+            timestamp = request['signed_request']['timestamp']
+            nonce = base64.b64decode(request['signed_request']['nonce'])
+            action = request['signed_request']['action']
+            username = request['signed_request']['username']
+            
+            if not verify_signature(sig_alg, sig_key, signature, timestamp, nonce, action, username):
+                raise ClientError(f"Message signature for {username} is invalid. Possible tampering detected.")
+        
         return requests
 
     def add_contact(self, username):
@@ -439,6 +464,10 @@ class Client():
             action = message['action']
             encrypted_key = base64.b64decode(message['encrypted_key'])
             encrypted_message = base64.b64decode(message['encrypted_message'])
+            
+            # check if known signature
+            if username not in self.known_signatures:
+                raise ClientError(f"No known signature for {username}. Try refreshing contacts.")
             
             # verify signature
             if not verify_signature(self.sig_alg, base64.b64decode(self.known_signatures[username]['sig_public_key']), signature,

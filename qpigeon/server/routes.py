@@ -194,8 +194,7 @@ def register_submit():
         return jsonify({"message": "Registration successful"}), 201
     except Exception as e:
         db.session.rollback()
-
-        if 'UNIQUE constraint failed: user.username' in str(e):
+        if 'unique constraint' in str(e).lower():
             return jsonify({"message": "Username already taken"}), 400
         return jsonify({"message": "Error creating user"}), 400
 

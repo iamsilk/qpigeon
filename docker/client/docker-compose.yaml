@@ -12,6 +12,8 @@ services:
       - qpigeon/client/console.py
       - --endpoint
       - http://server-flask-1:5000
+      - --profile
+      - ~/.qpigeon/${QPIGEON_PROFILE}
 
 networks:
   qpigeon:

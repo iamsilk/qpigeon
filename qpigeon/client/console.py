@@ -11,8 +11,17 @@ class ConsoleClient():
         self.client = Client(endpoint)
         
         self.client.register_new_signature_callback(self.new_signature_callback)
+        self.client.register_new_kem_callback(self.new_kem_callback)
+        
+        self.sig_alg = 'Dilithium2'
+        self.kem_alg = 'Kyber512'
         
         self.profile_dir = os.path.abspath(os.path.expanduser(profile_dir))
+        
+        # make directory if it doesn't exist
+        if not os.path.exists(self.profile_dir):
+            os.makedirs(self.profile_dir)
+        
         self._profile_user_path = os.path.join(self.profile_dir, 'user.json')
         self._profile_contacts_path = os.path.join(self.profile_dir, 'contacts.json')
         self._profile_messages_path = os.path.join(self.profile_dir, 'messages.json')
@@ -100,7 +109,7 @@ class ConsoleClient():
                 self.client.load_known_signatures(known_signatures)
                 self.client.load_known_kems(known_kems)
                 print(f'- Known signatures loaded ({len(known_signatures)}).')
-                print(f'- Known KEMs loaded ({len(known_signatures)}).')
+                print(f'- Known KEMs loaded ({len(known_kems)}).')
         except FileNotFoundError:
             print('- No known signatures loaded.')
             print('- No known KEMs loaded.')
@@ -158,22 +167,28 @@ class ConsoleClient():
             json.dump(self.client.messages, f, indent=4)
 
     def new_signature_callback(self, username, sig_alg, sig_public_key):
-        print(f'First time seeing signature for {username}. Saving to known signatures...')
+        print(f'* First time seeing signature for {username}. Saving to known signatures...')
         self.save_profile_contacts()
         
-    def new_kem_callback(self, username, kem_alg, kem_public_key):
-        print(f'First time seeing KEM for {username}. Saving to known KEMs...')
+    def new_kem_callback(self, username, kem_alg, kem_public_key, kem_signature):
+        print(f'* First time seeing KEM for {username}. Saving to known KEMs...')
         self.save_profile_contacts()
     
     def command_loop(self):
         while True:
             try:
-                command = input('qpigeon> ').lower()
+                try:
+                    command = input('qpigeon> ').lower()
+                except KeyboardInterrupt:
+                    print()
+                    break
+                
                 if command == 'help':
                     print("Available commands:")
                     print(" General:")
                     print("  help      - show this help")
                     print("  quit      - quit the client")
+                    print("  algs      - show the enabled post-quantum algorithms")
                     print(" Authentication:")
                     print("  login     - login as the current profile's user")
                     print("  register  - register as new user (WARNING: this may overwrite your existing profile)")
@@ -189,6 +204,10 @@ class ConsoleClient():
                 
                 if command == 'quit':
                     break
+                
+                if command == 'algs':
+                    self.print_algorithms()
+                    continue
                 
                 if command == 'login':
                     self.login()
@@ -214,7 +233,7 @@ class ConsoleClient():
                     self.list_requests()
                     continue
                 
-                if command == 'send':
+                if command == 'send' or command == 'message':
                     self.send_message()
                     continue
                 
@@ -226,8 +245,22 @@ class ConsoleClient():
             except ClientError as e:
                 print(f'Error: {e}')
             except KeyboardInterrupt:
-                break
+                print()
+                continue
             
+    def print_algorithms(self):
+        print("Available signature algorithms (*selected):")
+        sig_algorithms = self.client.get_sig_algorithms()
+        sig_algorithms = [('*' + alg) if alg == self.sig_alg else alg for alg in self.client.get_sig_algorithms()]
+        print('  ' + ', '.join(sig_algorithms))
+        print()
+        
+        print("Available KEM algorithms (*selected):")
+        kem_algorithms = self.client.get_kem_algorithms()
+        kem_algorithms = [('*' + alg) if alg == self.kem_alg else alg for alg in self.client.get_kem_algorithms()]
+        print('  ' + ', '.join(kem_algorithms))
+        print()
+
     def login(self):
         username = self.client.username or input('Username> ')
         print('Logging in...')
@@ -321,8 +354,8 @@ class ConsoleClient():
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Qpigeon client')
     parser.add_argument('-e', '--endpoint', dest='endpoint', default='http://localhost:5000', help='qpigeon server endpoint')
-    parser.add_argument('-p', '--profile-dir', dest='profile_dir', default='~/.qpigeon', help='qpigeon profile directory')
+    parser.add_argument('-p', '--profile', dest='profile', default='~/.qpigeon', help='qpigeon profile directory')
     args = parser.parse_args()
     
-    client = ConsoleClient(args.endpoint, args.profile_dir)
+    client = ConsoleClient(args.endpoint, args.profile)
     client.run()

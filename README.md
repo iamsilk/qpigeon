@@ -41,3 +41,26 @@ docker compose -f docker/server/docker-compose.yaml up --build
 docker compose -f docker/client/docker-compose.yaml build
 docker compose -f docker/client/docker-compose.yaml run --rm client
 ```
+
+## Demo
+
+To demo qpigeon, you will need to setup three terminals:
+
+1. In the first terminal, start the server.
+    ```sh
+    docker compose -f docker/server/docker-compose.yaml up --build
+    ```
+
+2. In the second terminal, start Bob's client.
+    ```sh
+    $env:QPIGEON_PROFILE='bob' # export QPIGEON_PROFILE=bob
+    docker compose -f docker/client/docker-compose.yaml build
+    docker compose -f docker/client/docker-compose.yaml run --rm client
+    ```
+
+2. In the third terminal, start Alice's client.
+    ```sh
+    $env:QPIGEON_PROFILE='alice' # export QPIGEON_PROFILE=bob
+    docker compose -f docker/client/docker-compose.yaml build
+    docker compose -f docker/client/docker-compose.yaml run --rm client
+    ```
