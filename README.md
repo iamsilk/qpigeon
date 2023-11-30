@@ -60,7 +60,7 @@ To demo qpigeon, you will need to setup three terminals:
 
 2. In the third terminal, start Alice's client.
     ```sh
-    $env:QPIGEON_PROFILE='alice' # export QPIGEON_PROFILE=bob
+    $env:QPIGEON_PROFILE='alice' # export QPIGEON_PROFILE=alice
     docker compose -f docker/client/docker-compose.yaml build
     docker compose -f docker/client/docker-compose.yaml run --rm client
     ```
