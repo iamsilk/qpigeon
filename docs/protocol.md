@@ -35,6 +35,73 @@ $$
 
 <div style="page-break-after: always;"></div>
 
+## Registration
+
+$$
+\text{Bob registers his keys with the server.}
+$$
+
+$$
+\begin{align*}
+
+\text{Bob has} &: PS_{\text{Bob}}, SS_{\text{Bob}}, PK_{\text{Bob}}, SK_{\text{Bob}}\\
+\\
+
+\\
+\text{Bob sends to server} &: PS_{\text{Bob}}, PK_{\text{Bob}}
+\\
+\\
+
+\text{Server calculates} &:\\
+
+M &= \{0,1\}^{128}
+&& \text{Generate signing challenge.}
+\\
+
+K &= \{0,1\}^{128}
+&& \text{Generate KEM challenge.}
+\\
+
+C &= \text{KEM}_{PK_{\text{Bob}}}(K)
+&& \text{Encapsulate KEM challenge.}
+\\
+
+\\
+\text{Server sends to Bob} &: M, C
+\\
+\\
+
+\text{Bob calculates} &:\\
+
+S &= \text{Sign}_{SS_\text{Bob}}(M)
+&& \text{Sign the signing challenge.}
+\\
+
+K' &= \text{KEM}^{-1}_{SK_\text{Bob}}(C)
+&& \text{Decapsulate the KEM challenge.}
+\\
+
+\\
+\text{Bob sends to Server} &:S, K'
+\\
+\\
+
+\text{Server calculates} &:\\
+
+S_\text{Verify} &= \text{Sign}^{-1}_{PS_{\text{Bob}}}(S, M)
+&& \text{Verify the signature of the signing challenge.}
+\\
+
+K &= K'
+&& \text{Verify the KEM challenge response is correct.}
+\\
+
+&&& \text{Once verified, Server records Bob's keys.}
+\end{align*}
+$$
+
+<div style="page-break-after: always;"></div>
+
 ## Contact Request and Accept
 
 $$
